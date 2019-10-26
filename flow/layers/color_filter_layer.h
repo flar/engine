@@ -13,10 +13,25 @@ namespace flutter {
 
 class ColorFilterLayer : public ContainerLayer {
  public:
+  static std::shared_ptr<ColorFilterLayer> makeLayer(
+      sk_sp<SkColorFilter> filter,
+      std::shared_ptr<ColorFilterLayer> old_layer) {
+    if (old_layer) {
+      ColorFilterLayer* old_filter_layer = (ColorFilterLayer*)old_layer.get();
+      if (old_filter_layer->filter_ == filter) {
+        old_filter_layer->PrepareForNewChildren();
+        return old_layer;
+      }
+    }
+    return std::make_shared<flutter::ColorFilterLayer>(filter);
+  }
+
   ColorFilterLayer(sk_sp<SkColorFilter> filter);
   ~ColorFilterLayer() override;
 
   void Paint(PaintContext& context) const override;
+
+  std::string layer_type_name() const override { return "ColorFilterLayer"; }
 
  private:
   sk_sp<SkColorFilter> filter_;

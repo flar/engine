@@ -38,30 +38,45 @@ class SceneBuilder : public RefCountedDartWrappable<SceneBuilder> {
 
   ~SceneBuilder() override;
 
-  fml::RefPtr<EngineLayer> pushTransform(tonic::Float64List& matrix4);
-  fml::RefPtr<EngineLayer> pushOffset(double dx, double dy);
+  fml::RefPtr<EngineLayer> pushTransform(tonic::Float64List& matrix4,
+                                         fml::RefPtr<EngineLayer> oldLayer);
+  fml::RefPtr<EngineLayer> pushOffset(double dx,
+                                      double dy,
+                                      fml::RefPtr<EngineLayer> oldLayer);
   fml::RefPtr<EngineLayer> pushClipRect(double left,
                                         double right,
                                         double top,
                                         double bottom,
-                                        int clipBehavior);
-  fml::RefPtr<EngineLayer> pushClipRRect(const RRect& rrect, int clipBehavior);
+                                        int clipBehavior,
+                                        fml::RefPtr<EngineLayer> oldLayer);
+  fml::RefPtr<EngineLayer> pushClipRRect(const RRect& rrect,
+                                         int clipBehavior,
+                                         fml::RefPtr<EngineLayer> oldLayer);
   fml::RefPtr<EngineLayer> pushClipPath(const CanvasPath* path,
-                                        int clipBehavior);
-  fml::RefPtr<EngineLayer> pushOpacity(int alpha, double dx = 0, double dy = 0);
-  fml::RefPtr<EngineLayer> pushColorFilter(const ColorFilter* color_filter);
-  fml::RefPtr<EngineLayer> pushBackdropFilter(ImageFilter* filter);
+                                        int clipBehavior,
+                                        fml::RefPtr<EngineLayer> oldLayer);
+  fml::RefPtr<EngineLayer> pushOpacity(int alpha,
+                                       double dx,
+                                       double dy,
+                                       fml::RefPtr<EngineLayer> oldLayer);
+  fml::RefPtr<EngineLayer> pushColorFilter(const ColorFilter* color_filter,
+                                           fml::RefPtr<EngineLayer> oldLayer);
+  fml::RefPtr<EngineLayer> pushBackdropFilter(
+      ImageFilter* filter,
+      fml::RefPtr<EngineLayer> oldLayer);
   fml::RefPtr<EngineLayer> pushShaderMask(Shader* shader,
                                           double maskRectLeft,
                                           double maskRectRight,
                                           double maskRectTop,
                                           double maskRectBottom,
-                                          int blendMode);
+                                          int blendMode,
+                                          fml::RefPtr<EngineLayer> oldLayer);
   fml::RefPtr<EngineLayer> pushPhysicalShape(const CanvasPath* path,
                                              double elevation,
                                              int color,
                                              int shadowColor,
-                                             int clipBehavior);
+                                             int clipBehavior,
+                                             fml::RefPtr<EngineLayer> oldLayer);
 
   void addRetained(fml::RefPtr<EngineLayer> retainedLayer);
 

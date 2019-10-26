@@ -21,19 +21,28 @@ class PictureLayer : public Layer {
                bool will_change);
   ~PictureLayer() override;
 
+  bool can_replace(Layer* other) override;
+
+  PictureLayer* as_picture_layer() override { return this; }
+
   SkPicture* picture() const { return picture_.get().get(); }
 
   void Preroll(PrerollContext* frame, const SkMatrix& matrix) override;
 
   void Paint(PaintContext& context) const override;
 
+  std::string layer_type_name() const override { return "PictureLayer"; }
+
  private:
   SkPoint offset_;
   // Even though pictures themselves are not GPU resources, they may reference
   // images that have a reference to a GPU resource.
   SkiaGPUObject<SkPicture> picture_;
+  sk_sp<SkData> data_;
   bool is_complex_ = false;
   bool will_change_ = false;
+
+  bool compare_picture(PictureLayer* other_picture);
 
   FML_DISALLOW_COPY_AND_ASSIGN(PictureLayer);
 };

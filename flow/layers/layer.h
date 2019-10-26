@@ -38,11 +38,13 @@
 namespace flutter {
 
 static constexpr SkRect kGiantRect = SkRect::MakeLTRB(-1E9F, -1E9F, 1E9F, 1E9F);
+static constexpr SkRect kEmptyRect = SkRect::MakeEmpty();
 
 // This should be an exact copy of the Clip enum in painting.dart.
 enum Clip { none, hardEdge, antiAlias, antiAliasWithSaveLayer };
 
 class ContainerLayer;
+class PictureLayer;
 
 struct PrerollContext {
   RasterCache* raster_cache;
@@ -51,6 +53,7 @@ struct PrerollContext {
   MutatorsStack& mutators_stack;
   SkColorSpace* dst_color_space;
   SkRect cull_rect;
+  SkRect dirty_rect;
 
   // The following allows us to paint in the end of subtree preroll
   const Stopwatch& raster_time;
@@ -84,6 +87,7 @@ class Layer {
     SkCanvas* internal_nodes_canvas;
     SkCanvas* leaf_nodes_canvas;
     GrContext* gr_context;
+    SkRect dirty_bounds;
     ExternalViewEmbedder* view_embedder;
     const Stopwatch& raster_time;
     const Stopwatch& ui_time;
@@ -136,6 +140,9 @@ class Layer {
   }
 
   const SkRect& paint_bounds() const { return paint_bounds_; }
+  const SkRect& dirty_bounds() const {
+    return is_painted_ ? kEmptyRect : paint_bounds_;
+  }
 
   // This must be set by the time Preroll() returns otherwise the layer will
   // be assumed to have empty paint bounds (paints no content).
@@ -144,12 +151,31 @@ class Layer {
   }
 
   bool needs_painting() const { return !paint_bounds_.isEmpty(); }
+  bool needs_painting(SkRect dirty_bounds) const {
+    return paint_bounds_.intersects(dirty_bounds);
+  }
+
+  bool is_painted() const { return is_painted_; }
+  void set_painted(bool is_painted) { is_painted_ = is_painted; }
+
+  virtual bool can_replace(Layer* other);
+
+  virtual PictureLayer* as_picture_layer() { return nullptr; }
 
   uint64_t unique_id() const { return unique_id_; }
+
+  virtual std::string layer_type_name() const { return "UnknownLayer"; }
+
+  friend std::ostream& operator<<(std::ostream& os, const Layer& layer)
+  {
+    os << layer.layer_type_name() << "(" << layer.unique_id() << ")";
+    return os;
+  }
 
  private:
   ContainerLayer* parent_;
   bool needs_system_composite_;
+  bool is_painted_;
   SkRect paint_bounds_;
   uint64_t unique_id_;
 

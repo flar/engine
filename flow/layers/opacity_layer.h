@@ -15,6 +15,21 @@ namespace flutter {
 // |EnsureSingleChild| will assert if there are no children.
 class OpacityLayer : public ContainerLayer {
  public:
+  static std::shared_ptr<OpacityLayer> makeLayer(
+      int alpha,
+      const SkPoint& offset,
+      std::shared_ptr<OpacityLayer> old_layer) {
+    if (old_layer) {
+      OpacityLayer* old_opacity_layer = (OpacityLayer*)old_layer.get();
+      if (old_opacity_layer->alpha_ == alpha &&
+          old_opacity_layer->offset_ == offset) {
+        old_opacity_layer->PrepareForNewChildren();
+        return old_layer;
+      }
+    }
+    return std::make_shared<flutter::OpacityLayer>(alpha, offset);
+  }
+
   // An offset is provided here because OpacityLayer.addToScene method in the
   // Flutter framework can take an optional offset argument.
   //
@@ -31,6 +46,8 @@ class OpacityLayer : public ContainerLayer {
   void Preroll(PrerollContext* context, const SkMatrix& matrix) override;
 
   void Paint(PaintContext& context) const override;
+
+  std::string layer_type_name() const override { return "OpacityLayer"; }
 
   // TODO(chinmaygarde): Once SCN-139 is addressed, introduce a new node in the
   // session scene hierarchy.

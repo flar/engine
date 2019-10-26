@@ -11,6 +11,37 @@ namespace flutter {
 
 class PhysicalShapeLayer : public ContainerLayer {
  public:
+  static std::shared_ptr<PhysicalShapeLayer> makeLayer(
+      SkColor color,
+      SkColor shadow_color,
+      SkScalar device_pixel_ratio,
+      float viewport_depth,
+      float elevation,
+      const SkPath& path,
+      Clip clip_behavior,
+      std::shared_ptr<PhysicalShapeLayer> old_layer) {
+    if (old_layer) {
+      PhysicalShapeLayer* old_shape_layer =
+          (PhysicalShapeLayer*)old_layer.get();
+      if (old_shape_layer->color_ == color &&
+          old_shape_layer->shadow_color_ == shadow_color &&
+          old_shape_layer->device_pixel_ratio_ == device_pixel_ratio &&
+          old_shape_layer->viewport_depth_ == viewport_depth &&
+          old_shape_layer->elevation_ == elevation &&
+          old_shape_layer->path_ == path &&
+          old_shape_layer->clip_behavior_ == clip_behavior) {
+        old_shape_layer->PrepareForNewChildren();
+        return old_layer;
+      }
+      FML_LOG(ERROR) << "Cannot reuse PhysicalShapeLayer";
+    } else {
+      FML_LOG(ERROR) << "No previous PhysicalShapeLayer to reuse";
+    }
+    return std::make_shared<flutter::PhysicalShapeLayer>(
+        color, shadow_color, device_pixel_ratio, viewport_depth, elevation,
+        path, clip_behavior);
+  }
+
   PhysicalShapeLayer(SkColor color,
                      SkColor shadow_color,
                      SkScalar device_pixel_ratio,
@@ -34,6 +65,8 @@ class PhysicalShapeLayer : public ContainerLayer {
 #if defined(OS_FUCHSIA)
   void UpdateScene(SceneUpdateContext& context) override;
 #endif  // defined(OS_FUCHSIA)
+
+  std::string layer_type_name() const override { return "PhysicalShapeLayer"; }
 
  private:
   SkColor color_;

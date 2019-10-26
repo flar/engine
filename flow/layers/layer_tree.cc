@@ -39,12 +39,18 @@ void LayerTree::Preroll(CompositorContext::ScopedFrame& frame,
       stack,
       color_space,
       kGiantRect,
+      kEmptyRect,
       frame.context().raster_time(),
       frame.context().ui_time(),
       frame.context().texture_registry(),
       checkerboard_offscreen_layers_};
 
   root_layer_->Preroll(&context, frame.root_surface_transformation());
+  FML_LOG(ERROR) << "After Dirty Rect: ["
+      << context.dirty_rect.left() << ", "
+      << context.dirty_rect.top() << ", "
+      << context.dirty_rect.width() << " x "
+      << context.dirty_rect.height() << "]";
 }
 
 #if defined(OS_FUCHSIA)
@@ -89,6 +95,7 @@ void LayerTree::Paint(CompositorContext::ScopedFrame& frame,
       (SkCanvas*)&internal_nodes_canvas,
       frame.canvas(),
       frame.gr_context(),
+      kGiantRect,
       frame.view_embedder(),
       frame.context().raster_time(),
       frame.context().ui_time(),
@@ -124,6 +131,7 @@ sk_sp<SkPicture> LayerTree::Flatten(const SkRect& bounds) {
       unused_stack,             // mutator stack
       nullptr,                  // SkColorSpace* dst_color_space
       kGiantRect,               // SkRect cull_rect
+      kEmptyRect,               // SkRect dirty_rect
       unused_stopwatch,         // frame time (dont care)
       unused_stopwatch,         // engine time (dont care)
       unused_texture_registry,  // texture registry (not supported)
@@ -138,6 +146,7 @@ sk_sp<SkPicture> LayerTree::Flatten(const SkRect& bounds) {
       (SkCanvas*)&internal_nodes_canvas,
       canvas,  // canvas
       nullptr,
+      kGiantRect,
       nullptr,
       unused_stopwatch,         // frame time (dont care)
       unused_stopwatch,         // engine time (dont care)

@@ -83,98 +83,125 @@ void SceneBuilder::RegisterNatives(tonic::DartLibraryNatives* natives) {
 SceneBuilder::SceneBuilder() = default;
 SceneBuilder::~SceneBuilder() = default;
 
+#define AS_LAYER(type, oldLayer)                                         \
+  (oldLayer ? std::static_pointer_cast<flutter::type>(oldLayer->Layer()) \
+            : nullptr)
+
 fml::RefPtr<EngineLayer> SceneBuilder::pushTransform(
-    tonic::Float64List& matrix4) {
+    tonic::Float64List& matrix4,
+    fml::RefPtr<EngineLayer> oldLayer) {
   SkMatrix sk_matrix = ToSkMatrix(matrix4);
-  auto layer = std::make_shared<flutter::TransformLayer>(sk_matrix);
+  auto layer = flutter::TransformLayer::makeLayer(
+      sk_matrix, AS_LAYER(TransformLayer, oldLayer));
   PushLayer(layer);
   // matrix4 has to be released before we can return another Dart object
   matrix4.Release();
   return EngineLayer::MakeRetained(layer);
 }
 
-fml::RefPtr<EngineLayer> SceneBuilder::pushOffset(double dx, double dy) {
+fml::RefPtr<EngineLayer> SceneBuilder::pushOffset(
+    double dx,
+    double dy,
+    fml::RefPtr<EngineLayer> oldLayer) {
   SkMatrix sk_matrix = SkMatrix::MakeTrans(dx, dy);
-  auto layer = std::make_shared<flutter::TransformLayer>(sk_matrix);
+  auto layer = flutter::TransformLayer::makeLayer(
+      sk_matrix, AS_LAYER(TransformLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }
 
-fml::RefPtr<EngineLayer> SceneBuilder::pushClipRect(double left,
-                                                    double right,
-                                                    double top,
-                                                    double bottom,
-                                                    int clipBehavior) {
+fml::RefPtr<EngineLayer> SceneBuilder::pushClipRect(
+    double left,
+    double right,
+    double top,
+    double bottom,
+    int clipBehavior,
+    fml::RefPtr<EngineLayer> oldLayer) {
   SkRect clipRect = SkRect::MakeLTRB(left, top, right, bottom);
   flutter::Clip clip_behavior = static_cast<flutter::Clip>(clipBehavior);
-  auto layer =
-      std::make_shared<flutter::ClipRectLayer>(clipRect, clip_behavior);
+  auto layer = flutter::ClipRectLayer::makeLayer(
+      clipRect, clip_behavior, AS_LAYER(ClipRectLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }
 
-fml::RefPtr<EngineLayer> SceneBuilder::pushClipRRect(const RRect& rrect,
-                                                     int clipBehavior) {
+fml::RefPtr<EngineLayer> SceneBuilder::pushClipRRect(
+    const RRect& rrect,
+    int clipBehavior,
+    fml::RefPtr<EngineLayer> oldLayer) {
   flutter::Clip clip_behavior = static_cast<flutter::Clip>(clipBehavior);
-  auto layer =
-      std::make_shared<flutter::ClipRRectLayer>(rrect.sk_rrect, clip_behavior);
+  auto layer = flutter::ClipRRectLayer::makeLayer(
+      rrect.sk_rrect, clip_behavior, AS_LAYER(ClipRRectLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }
 
-fml::RefPtr<EngineLayer> SceneBuilder::pushClipPath(const CanvasPath* path,
-                                                    int clipBehavior) {
+fml::RefPtr<EngineLayer> SceneBuilder::pushClipPath(
+    const CanvasPath* path,
+    int clipBehavior,
+    fml::RefPtr<EngineLayer> oldLayer) {
   flutter::Clip clip_behavior = static_cast<flutter::Clip>(clipBehavior);
   FML_DCHECK(clip_behavior != flutter::Clip::none);
-  auto layer =
-      std::make_shared<flutter::ClipPathLayer>(path->path(), clip_behavior);
+  auto layer = flutter::ClipPathLayer::makeLayer(
+      path->path(), clip_behavior, AS_LAYER(ClipPathLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }
 
-fml::RefPtr<EngineLayer> SceneBuilder::pushOpacity(int alpha,
-                                                   double dx,
-                                                   double dy) {
-  auto layer =
-      std::make_shared<flutter::OpacityLayer>(alpha, SkPoint::Make(dx, dy));
+fml::RefPtr<EngineLayer> SceneBuilder::pushOpacity(
+    int alpha,
+    double dx,
+    double dy,
+    fml::RefPtr<EngineLayer> oldLayer) {
+  auto layer = flutter::OpacityLayer::makeLayer(
+      alpha, SkPoint::Make(dx, dy), AS_LAYER(OpacityLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }
 
 fml::RefPtr<EngineLayer> SceneBuilder::pushColorFilter(
-    const ColorFilter* color_filter) {
-  auto layer =
-      std::make_shared<flutter::ColorFilterLayer>(color_filter->filter());
+    const ColorFilter* color_filter,
+    fml::RefPtr<EngineLayer> oldLayer) {
+  auto layer = flutter::ColorFilterLayer::makeLayer(
+      color_filter->filter(), AS_LAYER(ColorFilterLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }
 
-fml::RefPtr<EngineLayer> SceneBuilder::pushBackdropFilter(ImageFilter* filter) {
-  auto layer = std::make_shared<flutter::BackdropFilterLayer>(filter->filter());
+fml::RefPtr<EngineLayer> SceneBuilder::pushBackdropFilter(
+    ImageFilter* filter,
+    fml::RefPtr<EngineLayer> oldLayer) {
+  auto layer = flutter::BackdropFilterLayer::makeLayer(
+      filter->filter(), AS_LAYER(BackdropFilterLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }
 
-fml::RefPtr<EngineLayer> SceneBuilder::pushShaderMask(Shader* shader,
-                                                      double maskRectLeft,
-                                                      double maskRectRight,
-                                                      double maskRectTop,
-                                                      double maskRectBottom,
-                                                      int blendMode) {
+fml::RefPtr<EngineLayer> SceneBuilder::pushShaderMask(
+    Shader* shader,
+    double maskRectLeft,
+    double maskRectRight,
+    double maskRectTop,
+    double maskRectBottom,
+    int blendMode,
+    fml::RefPtr<EngineLayer> oldLayer) {
   SkRect rect = SkRect::MakeLTRB(maskRectLeft, maskRectTop, maskRectRight,
                                  maskRectBottom);
-  auto layer = std::make_shared<flutter::ShaderMaskLayer>(
-      shader->shader(), rect, static_cast<SkBlendMode>(blendMode));
+  auto layer = flutter::ShaderMaskLayer::makeLayer(
+      shader->shader(), rect, static_cast<SkBlendMode>(blendMode),
+      AS_LAYER(ShaderMaskLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }
 
-fml::RefPtr<EngineLayer> SceneBuilder::pushPhysicalShape(const CanvasPath* path,
-                                                         double elevation,
-                                                         int color,
-                                                         int shadow_color,
-                                                         int clipBehavior) {
-  auto layer = std::make_shared<flutter::PhysicalShapeLayer>(
+fml::RefPtr<EngineLayer> SceneBuilder::pushPhysicalShape(
+    const CanvasPath* path,
+    double elevation,
+    int color,
+    int shadow_color,
+    int clipBehavior,
+    fml::RefPtr<EngineLayer> oldLayer) {
+  auto layer = flutter::PhysicalShapeLayer::makeLayer(
       static_cast<SkColor>(color), static_cast<SkColor>(shadow_color),
       static_cast<float>(UIDartState::Current()
                              ->window()
@@ -183,7 +210,8 @@ fml::RefPtr<EngineLayer> SceneBuilder::pushPhysicalShape(const CanvasPath* path,
       static_cast<float>(
           UIDartState::Current()->window()->viewport_metrics().physical_depth),
       static_cast<float>(elevation), path->path(),
-      static_cast<flutter::Clip>(clipBehavior));
+      static_cast<flutter::Clip>(clipBehavior),
+      AS_LAYER(PhysicalShapeLayer, oldLayer));
   PushLayer(layer);
   return EngineLayer::MakeRetained(layer);
 }

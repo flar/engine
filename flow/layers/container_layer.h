@@ -38,8 +38,19 @@ class ContainerLayer : public Layer {
   // For OpacityLayer to restructure to have a single child.
   void ClearChildren() { layers_.clear(); }
 
+  void PrepareForNewChildren() {
+    check_children_ = true;
+    std::vector<std::shared_ptr<Layer>> old_layers = layers_;
+    layers_ = prev_layers_;
+    prev_layers_ = old_layers;
+  }
+
+  std::string layer_type_name() const override { return "UnknownContainerLayer"; }
+
  private:
   std::vector<std::shared_ptr<Layer>> layers_;
+  std::vector<std::shared_ptr<Layer>> prev_layers_;
+  bool check_children_;
 
   FML_DISALLOW_COPY_AND_ASSIGN(ContainerLayer);
 };

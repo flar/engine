@@ -15,9 +15,53 @@ PictureLayer::PictureLayer(const SkPoint& offset,
     : offset_(offset),
       picture_(std::move(picture)),
       is_complex_(is_complex),
-      will_change_(will_change) {}
+      will_change_(will_change) {
+    if (picture.get()) {
+      data_ = picture.get()->serialize();
+    }
+  }
 
 PictureLayer::~PictureLayer() = default;
+
+bool PictureLayer::compare_picture(PictureLayer* other_picture) {
+  SkPicture* a = picture();
+  SkPicture* b = other_picture->picture();
+  if (a && b) {
+    if (a->uniqueID() == b->uniqueID()) {
+      return true;
+    }
+    if (a->cullRect() == b->cullRect() &&
+        a->approximateOpCount() == b->approximateOpCount() &&
+        a->approximateBytesUsed() == b->approximateBytesUsed()) {
+      if (!data_ || !other_picture->data_) {
+        return data_ == other_picture->data_;
+      }
+      return data_.get()->equals(other_picture->data_.get());
+    }
+  } else if (!a && !b) {
+    return true;
+  }
+  return false;
+}
+
+bool PictureLayer::can_replace(Layer* other) {
+  PictureLayer* other_picture = other->as_picture_layer();
+  if (other_picture) {
+    if (other_picture->offset_ == this->offset_ &&
+        // is_complex and will_change are strategy properties
+        // and do not affect the rasterized output
+        // other_picture->is_complex_ == this->is_complex_ &&
+        // other_picture->will_change_ == this->will_change_ &&
+        compare_picture(other_picture)) {
+      set_painted(other_picture->is_painted());
+    }
+    return true;
+  }
+  FML_LOG(ERROR) << "PictureLayer replacing some other kind of layer: "
+      << this->picture()->uniqueID()
+      << " @ " << offset_.x() << ", " << offset_.y();
+  return false;
+}
 
 void PictureLayer::Preroll(PrerollContext* context, const SkMatrix& matrix) {
   SkPicture* sk_picture = picture();

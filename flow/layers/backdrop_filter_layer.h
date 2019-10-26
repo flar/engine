@@ -13,10 +13,29 @@ namespace flutter {
 
 class BackdropFilterLayer : public ContainerLayer {
  public:
+  static std::shared_ptr<BackdropFilterLayer> makeLayer(
+      sk_sp<SkImageFilter> filter,
+      std::shared_ptr<BackdropFilterLayer> old_layer) {
+    if (old_layer) {
+      BackdropFilterLayer* old_filter_layer =
+          (BackdropFilterLayer*)old_layer.get();
+      if (old_filter_layer->filter_ == filter) {
+        old_filter_layer->PrepareForNewChildren();
+        return old_layer;
+      }
+      FML_LOG(ERROR) << "Can't reuse BDF filter " << old_filter_layer->filter_ << " != " << filter;
+    }
+    return std::make_shared<flutter::BackdropFilterLayer>(filter);
+  }
+
   BackdropFilterLayer(sk_sp<SkImageFilter> filter);
   ~BackdropFilterLayer() override;
 
+  void Preroll(PrerollContext* context, const SkMatrix& matrix) override;
+
   void Paint(PaintContext& context) const override;
+
+  std::string layer_type_name() const override { return "BackdropFilterLayer"; }
 
  private:
   sk_sp<SkImageFilter> filter_;

@@ -12,10 +12,15 @@ namespace flutter {
 Layer::Layer()
     : parent_(nullptr),
       needs_system_composite_(false),
+      is_painted_(false),
       paint_bounds_(SkRect::MakeEmpty()),
       unique_id_(NextUniqueID()) {}
 
 Layer::~Layer() = default;
+
+bool Layer::can_replace(Layer* other) {
+  return this == other;
+}
 
 uint64_t Layer::NextUniqueID() {
   static std::atomic<uint64_t> nextID(1);

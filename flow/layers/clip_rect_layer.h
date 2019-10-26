@@ -11,6 +11,21 @@ namespace flutter {
 
 class ClipRectLayer : public ContainerLayer {
  public:
+  static std::shared_ptr<ClipRectLayer> makeLayer(
+      const SkRect& clip_rect,
+      Clip clip_behavior,
+      std::shared_ptr<ClipRectLayer> old_layer) {
+    if (old_layer) {
+      ClipRectLayer* old_clip_layer = (ClipRectLayer*)old_layer.get();
+      if (old_clip_layer->clip_rect_ == clip_rect &&
+          old_clip_layer->clip_behavior_ == clip_behavior) {
+        old_clip_layer->PrepareForNewChildren();
+        return old_layer;
+      }
+    }
+    return std::make_shared<flutter::ClipRectLayer>(clip_rect, clip_behavior);
+  }
+
   ClipRectLayer(const SkRect& clip_rect, Clip clip_behavior);
   ~ClipRectLayer() override;
 
@@ -20,6 +35,8 @@ class ClipRectLayer : public ContainerLayer {
 #if defined(OS_FUCHSIA)
   void UpdateScene(SceneUpdateContext& context) override;
 #endif  // defined(OS_FUCHSIA)
+
+  std::string layer_type_name() const override { return "ClipRectLayer"; }
 
  private:
   SkRect clip_rect_;

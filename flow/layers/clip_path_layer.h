@@ -11,6 +11,21 @@ namespace flutter {
 
 class ClipPathLayer : public ContainerLayer {
  public:
+  static std::shared_ptr<ClipPathLayer> makeLayer(
+      const SkPath& clip_path,
+      Clip clip_behavior,
+      std::shared_ptr<ClipPathLayer> old_layer) {
+    if (old_layer) {
+      ClipPathLayer* old_clip_layer = (ClipPathLayer*)old_layer.get();
+      if (old_clip_layer->clip_path_ == clip_path &&
+          old_clip_layer->clip_behavior_ == clip_behavior) {
+        old_clip_layer->PrepareForNewChildren();
+        return old_layer;
+      }
+    }
+    return std::make_shared<flutter::ClipPathLayer>(clip_path, clip_behavior);
+  }
+
   ClipPathLayer(const SkPath& clip_path, Clip clip_behavior = Clip::antiAlias);
   ~ClipPathLayer() override;
 
@@ -21,6 +36,8 @@ class ClipPathLayer : public ContainerLayer {
 #if defined(OS_FUCHSIA)
   void UpdateScene(SceneUpdateContext& context) override;
 #endif  // defined(OS_FUCHSIA)
+
+  std::string layer_type_name() const override { return "ClipPathLayer"; }
 
  private:
   SkPath clip_path_;

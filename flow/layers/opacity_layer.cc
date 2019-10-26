@@ -31,6 +31,7 @@ void OpacityLayer::EnsureSingleChild() {
   }
   ClearChildren();
   Add(new_child);
+  set_painted(false);
 }
 
 void OpacityLayer::Preroll(PrerollContext* context, const SkMatrix& matrix) {

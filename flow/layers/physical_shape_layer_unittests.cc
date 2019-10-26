@@ -36,6 +36,7 @@ TEST(PhysicalShapeLayer, TotalElevation) {
       unused_stack,             // mutator stack
       nullptr,                  // SkColorSpace* dst_color_space
       kGiantRect,               // SkRect cull_rect
+      kEmptyRect,               // SkRect dirty_rect
       unused_stopwatch,         // frame time (dont care)
       unused_stopwatch,         // engine time (dont care)
       unused_texture_registry,  // texture registry (not supported)

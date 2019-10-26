@@ -11,6 +11,15 @@ BackdropFilterLayer::BackdropFilterLayer(sk_sp<SkImageFilter> filter)
 
 BackdropFilterLayer::~BackdropFilterLayer() = default;
 
+void BackdropFilterLayer::Preroll(PrerollContext* context,
+                                  const SkMatrix& matrix) {
+  if (!context->dirty_rect.isEmpty()) {
+    FML_LOG(ERROR) << "******* BackdropFilterLayer must repaint due to dirty rectangle *******";
+    this->set_painted(false);
+  }
+  ContainerLayer::Preroll(context, matrix);
+}
+
 void BackdropFilterLayer::Paint(PaintContext& context) const {
   TRACE_EVENT0("flutter", "BackdropFilterLayer::Paint");
   FML_DCHECK(needs_painting());

@@ -2698,13 +2698,116 @@ class _ColorFilter extends NativeFieldWrapperClass2 {
 ///  * [BackdropFilter], a widget that applies [ImageFilter] to its rendering.
 ///  * [SceneBuilder.pushBackdropFilter], which is the low-level API for using
 ///    this class.
-class ImageFilter extends NativeFieldWrapperClass2 {
+class ImageFilter {
+  /// Creates an image filter that applies a Gaussian blur.
+  ImageFilter.blur({ double sigmaX = 0.0, double sigmaY = 0.0 })
+      : _data = _makeList(sigmaX, sigmaY),
+        _filterQuality = null,
+        _type = _TypeBlur;
+
+  /// Creates an image filter that applies a matrix transformation.
+  ///
+  /// For example, applying a positive scale matrix (see [Matrix4.diagonal3])
+  /// when used with [BackdropFilter] would magnify the background image.
+  ImageFilter.matrix(Float64List matrix4,
+                     { FilterQuality filterQuality = FilterQuality.low })
+      : _data = Float64List.fromList(matrix4),
+        _filterQuality = filterQuality,
+        _type = _TypeMatrix {
+    if (matrix4.length != 16)
+      throw ArgumentError('"matrix4" must have 16 entries.');
+  }
+
+  static Float64List _makeList(double a, double b) {
+    final Float64List list = Float64List(2);
+    list[0] = a;
+    list[1] = b;
+    return list;
+  }
+
+  final Float64List _data;
+  final FilterQuality _filterQuality;
+  final int _type;
+  _ImageFilter _nativeFilter;
+
+  // The type of SkImageFilter class to create for Skia.
+  // These constants must be kept in sync with ImageFilterType in paint.cc.
+  // [TODO] that sounds fishy - I see no reason the type here matters to the native code.
+  static const int _TypeNone = 0; // null
+  static const int _TypeBlur = 1; // MakeBlurFilter
+  static const int _TypeMatrix = 2; // MakeMatrixFilterRowMajor255
+
+  @override
+  bool operator ==(dynamic other) {
+    if (other is! ImageFilter) {
+      return false;
+    }
+    final ImageFilter typedOther = other;
+
+    if (_type != typedOther._type) {
+      return false;
+    }
+    if (!_listEquals<double>(_data, typedOther._data)) {
+      return false;
+    }
+
+    return _filterQuality == typedOther._filterQuality;
+  }
+
+  _ImageFilter _toNativeImageFilter() {
+    return _nativeFilter ??= _makeNativeImageFilter();
+  }
+
+  _ImageFilter _makeNativeImageFilter() {
+    if (_data == null) {
+      return null;
+    }
+    switch (_type) {
+      case _TypeBlur:
+        return _ImageFilter.blur(this);
+      case _TypeMatrix:
+        if (_data == null) {
+          return null;
+        }
+        assert(_data.length == 16, 'Image Matrix must have 16 entries.');
+        return _ImageFilter.matrix(this);
+      default:
+        throw StateError('Unknown mode $_type for ImageFilter.');
+    }
+  }
+
+  @override
+  int get hashCode => hashValues(_filterQuality, hashList(_data), _type);
+
+  @override
+  String toString() {
+    switch (_type) {
+      case _TypeBlur:
+        return 'ImageFilter.blur(${_data[0]}, ${_data[1]})';
+      case _TypeMatrix:
+        return 'ImageFilter.matrix($_data, $_filterQuality)';
+      default:
+        return 'Unknown ImageFilter type. This is an error. If you\'re seeing this, please file an issue at https://github.com/flutter/flutter/issues/new.';
+    }
+  }
+}
+
+/// A filter operation to apply to a raster image.
+///
+/// See also:
+///
+///  * [BackdropFilter], a widget that applies [ImageFilter] to its rendering.
+///  * [SceneBuilder.pushBackdropFilter], which is the low-level API for using
+///    this class.
+class _ImageFilter extends NativeFieldWrapperClass2 {
   void _constructor() native 'ImageFilter_constructor';
 
   /// Creates an image filter that applies a Gaussian blur.
-  ImageFilter.blur({ double sigmaX = 0.0, double sigmaY = 0.0 }) {
+  _ImageFilter.blur(this.creator)
+    : assert(creator != null),
+      assert(creator._type == ImageFilter._TypeBlur) {
     _constructor();
-    _initBlur(sigmaX, sigmaY);
+    _initBlur(creator._data[0], creator._data[1]);
   }
   void _initBlur(double sigmaX, double sigmaY) native 'ImageFilter_initBlur';
 
@@ -2712,14 +2815,19 @@ class ImageFilter extends NativeFieldWrapperClass2 {
   ///
   /// For example, applying a positive scale matrix (see [Matrix4.diagonal3])
   /// when used with [BackdropFilter] would magnify the background image.
-  ImageFilter.matrix(Float64List matrix4,
-                     { FilterQuality filterQuality = FilterQuality.low }) {
-    if (matrix4.length != 16)
+  _ImageFilter.matrix(this.creator)
+    : assert(creator != null),
+      assert(creator._type == ImageFilter._TypeMatrix) {
+    if (creator._data.length != 16)
       throw ArgumentError('"matrix4" must have 16 entries.');
     _constructor();
-    _initMatrix(matrix4, filterQuality.index);
+    _initMatrix(creator._data, creator._filterQuality.index);
   }
   void _initMatrix(Float64List matrix4, int filterQuality) native 'ImageFilter_initMatrix';
+
+  /// The original Dart object that created the native wrapper, which retains
+  /// the values used for the filter.
+  final ImageFilter creator;
 }
 
 /// Base class for objects such as [Gradient] and [ImageShader] which

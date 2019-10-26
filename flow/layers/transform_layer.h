@@ -13,12 +13,37 @@ namespace flutter {
 // at all. Hence |set_transform| must be called with an initialized SkMatrix.
 class TransformLayer : public ContainerLayer {
  public:
+  static std::shared_ptr<TransformLayer> makeLayer(
+      const SkMatrix& transform,
+      std::shared_ptr<TransformLayer> old_layer) {
+    if (old_layer) {
+      TransformLayer* old_tx_layer = (TransformLayer*)old_layer.get();
+      if (old_tx_layer->transform_ == transform) {
+        old_tx_layer->PrepareForNewChildren();
+        return old_layer;
+      }
+      FML_LOG(ERROR) << "Can't use old TransformLayer";
+      logTransform("Old Transform", &old_tx_layer->transform_);
+      logTransform("New Transform", &transform);
+    }
+    return std::make_shared<flutter::TransformLayer>(transform);
+  }
+
+  static void logTransform(std::string label, const SkMatrix* transform) {
+    FML_LOG(ERROR) << label << " {\n"
+        << "  { " << transform->get(0) << ", " << transform->get(1) << ", " << transform->get(2) << " },\n"
+        << "  { " << transform->get(3) << ", " << transform->get(4) << ", " << transform->get(5) << " },\n"
+        << "  { " << transform->get(6) << ", " << transform->get(7) << ", " << transform->get(8) << " },\n"
+        << "}";
+  }
   TransformLayer(const SkMatrix& transform);
   ~TransformLayer() override;
 
   void Preroll(PrerollContext* context, const SkMatrix& matrix) override;
 
   void Paint(PaintContext& context) const override;
+
+  std::string layer_type_name() const override { return "TransformLayer"; }
 
 #if defined(OS_FUCHSIA)
   void UpdateScene(SceneUpdateContext& context) override;
