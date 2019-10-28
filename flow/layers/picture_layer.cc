@@ -16,9 +16,7 @@ PictureLayer::PictureLayer(const SkPoint& offset,
       picture_(std::move(picture)),
       is_complex_(is_complex),
       will_change_(will_change) {
-    if (picture.get()) {
-      data_ = picture.get()->serialize();
-    }
+    data_ = picture_.get()->serialize();
   }
 
 PictureLayer::~PictureLayer() = default;
@@ -26,22 +24,15 @@ PictureLayer::~PictureLayer() = default;
 bool PictureLayer::compare_picture(PictureLayer* other_picture) {
   SkPicture* a = picture();
   SkPicture* b = other_picture->picture();
-  if (a && b) {
-    if (a->uniqueID() == b->uniqueID()) {
-      return true;
-    }
-    if (a->cullRect() == b->cullRect() &&
-        a->approximateOpCount() == b->approximateOpCount() &&
-        a->approximateBytesUsed() == b->approximateBytesUsed()) {
-      if (!data_ || !other_picture->data_) {
-        return data_ == other_picture->data_;
-      }
-      return data_.get()->equals(other_picture->data_.get());
-    }
-  } else if (!a && !b) {
+  if (a->uniqueID() == b->uniqueID()) {
     return true;
   }
-  return false;
+  if (a->cullRect() != b->cullRect() ||
+      a->approximateOpCount() != b->approximateOpCount() ||
+      a->approximateBytesUsed() != b->approximateBytesUsed()) {
+    return false;
+  }
+  return data_.get()->equals(other_picture->data_.get());
 }
 
 bool PictureLayer::can_replace(Layer* other) {
