@@ -43,6 +43,7 @@ class PictureLayer : public Layer {
   bool will_change_ = false;
 
   bool compare_picture(PictureLayer* other_picture);
+  SkData* get_data();
 
   FML_DISALLOW_COPY_AND_ASSIGN(PictureLayer);
 };

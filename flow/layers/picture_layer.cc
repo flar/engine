@@ -15,11 +15,18 @@ PictureLayer::PictureLayer(const SkPoint& offset,
     : offset_(offset),
       picture_(std::move(picture)),
       is_complex_(is_complex),
-      will_change_(will_change) {
-    data_ = picture_.get()->serialize();
-  }
+      will_change_(will_change) {}
 
 PictureLayer::~PictureLayer() = default;
+
+SkData* PictureLayer::get_data() {
+  SkData* the_data = data_.get();
+  if (!the_data) {
+    data_ = picture()->serialize();
+    the_data = data_.get();
+  }
+  return the_data;
+}
 
 bool PictureLayer::compare_picture(PictureLayer* other_picture) {
   SkPicture* a = picture();
@@ -32,7 +39,7 @@ bool PictureLayer::compare_picture(PictureLayer* other_picture) {
       a->approximateBytesUsed() != b->approximateBytesUsed()) {
     return false;
   }
-  return data_.get()->equals(other_picture->data_.get());
+  return get_data()->equals(other_picture->get_data());
 }
 
 bool PictureLayer::can_replace(Layer* other) {
