@@ -23,6 +23,40 @@ void ContainerLayer::Preroll(PrerollContext* context, const SkMatrix& matrix) {
   set_paint_bounds(child_paint_bounds);
 }
 
+static void accumulate(PrerollContext* context, const SkMatrix& child_matrix, const SkRect *child_bounds) {
+  SkRect transformed_bounds = child_matrix.mapRect(*child_bounds);
+  context->dirty_rect.join(transformed_bounds);
+}
+
+static std::string mapChildren(int first, int last_cur, int last_prev, int end) {
+  std::ostringstream oss;
+  int i = 0;
+  oss << "[";
+  while (i < first) {
+    oss << ".";
+    i++;
+  }
+  while (i < last_cur && i < last_prev) {
+    oss << "@";
+    i++;
+  }
+  while (i < last_cur) {
+    oss << "+";
+    i++;
+  }
+  while (i < last_prev) {
+    oss << "-";
+    i++;
+    end++;
+  }
+  while (i < end) {
+    oss << ".";
+    i++;
+  }
+  oss << "]";
+  return oss.str();
+}
+
 void ContainerLayer::PrerollChildren(PrerollContext* context,
                                      const SkMatrix& child_matrix,
                                      SkRect* child_paint_bounds) {
@@ -44,10 +78,11 @@ void ContainerLayer::PrerollChildren(PrerollContext* context,
       last_cur--;
       last_prev--;
     }
-    if (first_changed < end || first_changed < last_prev) {
-      FML_LOG(ERROR) << "Children changed"
-          << "[ 0 => " << first_changed << " => " << last_prev << " => " << prev_layers_.size() << "] => "
-          << "[ 0 => " << first_changed << " => " << last_cur << " => " << end << "]";
+    if (FML_LOG_IS_ON(INFO) && (first_changed < end || first_changed < last_prev)) {
+      FML_LOG(ERROR) << (last_prev - first_changed) << " children "
+          << "[ " << first_changed << " => " << (last_prev-1) << " ] out of " << prev_layers_.size()
+          << " replaced by " << (last_cur - first_changed) << " new children: "
+          << mapChildren(first_changed, last_cur, last_prev, end);
     }
   } else {
     first_changed = last_cur = last_prev = end;
@@ -66,12 +101,12 @@ void ContainerLayer::PrerollChildren(PrerollContext* context,
     bool was_painted = layer->is_painted();
     if (i == first_changed && i < last_prev) {
       if (is_painted()) {
-        FML_LOG(ERROR) << *this << " is now dirty due to missing " << (last_prev - i) << " children at " << i;
+        FML_LOG(INFO) << *this << " is now dirty due to missing " << (last_prev - i) << " children at " << i;
       }
       // set_painted(false);
       for (int j = i; j < last_prev; j++) {
-        FML_LOG(ERROR) << "Missing Old layer: " << *prev_layers_[j] << " is dirty";
-        context->dirty_rect.join(prev_layers_[j]->paint_bounds());
+        FML_LOG(INFO) << "Missing Old layer: " << *prev_layers_[j] << " is dirty";
+        accumulate(context, child_matrix, &prev_layers_[j]->paint_bounds());
       }
       last_prev = first_changed;
     }
@@ -94,20 +129,20 @@ void ContainerLayer::PrerollChildren(PrerollContext* context,
     if (!layer->is_painted() || (i >= first_changed && i < last_cur)) {
       if (i >= first_changed && i < last_cur) {
         if (layer->is_painted()) {
-          FML_LOG(ERROR) << "Inserted layer: " << *layer << " was not otherwise dirty";
+          FML_LOG(INFO) << "Inserted layer: " << *layer << " was not otherwise dirty";
         } else {
-          FML_LOG(ERROR) << "Inserted layer: " << *layer << " is dirty";
+          FML_LOG(INFO) << "Inserted layer: " << *layer << " is dirty";
         }
       } else if (was_painted) {
-        FML_LOG(ERROR) << "Old layer: " << *layer << " is dirty after preroll";
+        FML_LOG(INFO) << "Old layer: " << *layer << " is dirty after preroll";
       } else {
-        FML_LOG(ERROR) << "New layer: " << *layer << " is dirty";
+        FML_LOG(INFO) << "New layer: " << *layer << " is dirty";
       }
       if (is_painted()) {
-        FML_LOG(ERROR) << *this << " is now dirty due to dirty child (" << *layer << ") at " << i;
+        FML_LOG(INFO) << *this << " is now dirty due to dirty child (" << *layer << ") at " << i;
       }
       // set_painted(false);
-      context->dirty_rect.join(layer->paint_bounds());
+      accumulate(context, child_matrix, &layer->paint_bounds());
     }
   }
 
@@ -115,12 +150,12 @@ void ContainerLayer::PrerollChildren(PrerollContext* context,
 
   if (first_changed < last_prev) {
     if (is_painted()) {
-      FML_LOG(ERROR) << *this << " is now dirty due to " << (last_prev - first_changed) << " children trimmed after " << first_changed;
+      FML_LOG(INFO) << *this << " is now dirty due to " << (last_prev - first_changed) << " children trimmed after " << first_changed;
     }
     // set_painted(false);
     for (int j = first_changed; j < last_prev; j++) {
-      FML_LOG(ERROR) << "Extra Old layer: " << *prev_layers_[j] << " is dirty";
-      context->dirty_rect.join(prev_layers_[j]->paint_bounds());
+      FML_LOG(INFO) << "Extra Old layer: " << *prev_layers_[j] << " is dirty";
+      accumulate(context, child_matrix, &prev_layers_[j]->paint_bounds());
     }
   }
   prev_layers_.clear();

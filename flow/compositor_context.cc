@@ -33,12 +33,13 @@ void CompositorContext::EndFrame(ScopedFrame& frame,
 std::unique_ptr<CompositorContext::ScopedFrame> CompositorContext::AcquireFrame(
     GrContext* gr_context,
     SkCanvas* canvas,
+    SkIRect udpate_bounds,
     ExternalViewEmbedder* view_embedder,
     const SkMatrix& root_surface_transformation,
     bool instrumentation_enabled,
     fml::RefPtr<fml::GpuThreadMerger> gpu_thread_merger) {
   return std::make_unique<ScopedFrame>(
-      *this, gr_context, canvas, view_embedder, root_surface_transformation,
+      *this, gr_context, canvas, udpate_bounds, view_embedder, root_surface_transformation,
       instrumentation_enabled, gpu_thread_merger);
 }
 
@@ -46,6 +47,7 @@ CompositorContext::ScopedFrame::ScopedFrame(
     CompositorContext& context,
     GrContext* gr_context,
     SkCanvas* canvas,
+    SkIRect update_bounds,
     ExternalViewEmbedder* view_embedder,
     const SkMatrix& root_surface_transformation,
     bool instrumentation_enabled,
@@ -53,6 +55,7 @@ CompositorContext::ScopedFrame::ScopedFrame(
     : context_(context),
       gr_context_(gr_context),
       canvas_(canvas),
+      update_bounds_(update_bounds),
       view_embedder_(view_embedder),
       root_surface_transformation_(root_surface_transformation),
       instrumentation_enabled_(instrumentation_enabled),
@@ -67,7 +70,10 @@ CompositorContext::ScopedFrame::~ScopedFrame() {
 RasterStatus CompositorContext::ScopedFrame::Raster(
     flutter::LayerTree& layer_tree,
     bool ignore_raster_cache) {
-  layer_tree.Preroll(*this, ignore_raster_cache);
+  SkRect dirty_rect = layer_tree.Preroll(*this, ignore_raster_cache);
+  update_bounds_.join(dirty_rect.roundOut());
+  dirty_rect.set(update_bounds_);
+  bool update_all = false;
   PostPrerollResult post_preroll_result = PostPrerollResult::kSuccess;
   if (view_embedder_ && gpu_thread_merger_) {
     post_preroll_result = view_embedder_->PostPrerollAction(gpu_thread_merger_);
@@ -79,9 +85,25 @@ RasterStatus CompositorContext::ScopedFrame::Raster(
   // Clearing canvas after preroll reduces one render target switch when preroll
   // paints some raster cache.
   if (canvas()) {
+    FML_LOG(INFO) << "Rendering to "
+        << dirty_rect.left() << ", " << dirty_rect.top() << " => "
+        << dirty_rect.right() << ", " << dirty_rect.bottom();
+    if (!update_all) {
+      canvas()->save();
+      canvas()->clipRect(dirty_rect, false);
+    }
     canvas()->clear(SK_ColorTRANSPARENT);
   }
   layer_tree.Paint(*this, ignore_raster_cache);
+  if (!update_all && canvas()) {
+    canvas()->restore();
+    // SkPaint p;
+    // p.setColor(SK_ColorRED);
+    // p.setStyle(SkPaint::kStroke_Style);
+    // p.setAlphaf(0.25f);
+    // p.setStrokeWidth(4);
+    // canvas()->drawRect(dirty_rect, p);
+  }
   return RasterStatus::kSuccess;
 }
 

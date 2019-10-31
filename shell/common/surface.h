@@ -22,11 +22,15 @@ class SurfaceFrame {
   using SubmitCallback =
       std::function<bool(const SurfaceFrame& surface_frame, SkCanvas* canvas)>;
 
-  SurfaceFrame(sk_sp<SkSurface> surface, SubmitCallback submit_callback);
+  SurfaceFrame(sk_sp<SkSurface> surface, SkIRect update_bounds, SubmitCallback submit_callback);
 
   ~SurfaceFrame();
 
   bool Submit();
+
+  void add_update(const SkIRect* rect) { update_bounds_.join(*rect); }
+
+  SkIRect update_bounds() const { return update_bounds_; }
 
   SkCanvas* SkiaCanvas();
 
@@ -35,6 +39,7 @@ class SurfaceFrame {
  private:
   bool submitted_;
   sk_sp<SkSurface> surface_;
+  SkIRect update_bounds_;
   SubmitCallback submit_callback_;
 
   bool PerformSubmit();

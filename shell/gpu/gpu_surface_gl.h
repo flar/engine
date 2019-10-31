@@ -52,6 +52,7 @@ class GPUSurfaceGL : public Surface {
   sk_sp<GrContext> context_;
   sk_sp<SkSurface> onscreen_surface_;
   sk_sp<SkSurface> offscreen_surface_;
+  bool fresh_surfaces_ = true;
   bool context_owner_;
   // TODO(38466): Refactor GPU surface APIs take into account the fact that an
   // external view embedder may want to render to the root surface. This is a
@@ -67,7 +68,7 @@ class GPUSurfaceGL : public Surface {
       const SkISize& untransformed_size,
       const SkMatrix& root_surface_transformation);
 
-  bool PresentSurface(SkCanvas* canvas);
+  bool PresentSurface(SkCanvas* canvas, SkIRect update_bounds);
 
   FML_DISALLOW_COPY_AND_ASSIGN(GPUSurfaceGL);
 };

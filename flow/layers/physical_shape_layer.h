@@ -33,9 +33,6 @@ class PhysicalShapeLayer : public ContainerLayer {
         old_shape_layer->PrepareForNewChildren();
         return old_layer;
       }
-      FML_LOG(ERROR) << "Cannot reuse PhysicalShapeLayer";
-    } else {
-      FML_LOG(ERROR) << "No previous PhysicalShapeLayer to reuse";
     }
     return std::make_shared<flutter::PhysicalShapeLayer>(
         color, shadow_color, device_pixel_ratio, viewport_depth, elevation,

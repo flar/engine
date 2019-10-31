@@ -10,8 +10,9 @@
 namespace flutter {
 
 SurfaceFrame::SurfaceFrame(sk_sp<SkSurface> surface,
+                           SkIRect update_bounds,
                            SubmitCallback submit_callback)
-    : submitted_(false), surface_(surface), submit_callback_(submit_callback) {
+    : submitted_(false), surface_(surface), update_bounds_(update_bounds), submit_callback_(submit_callback) {
   FML_DCHECK(submit_callback_);
 }
 

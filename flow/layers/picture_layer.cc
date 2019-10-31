@@ -20,12 +20,10 @@ PictureLayer::PictureLayer(const SkPoint& offset,
 PictureLayer::~PictureLayer() = default;
 
 SkData* PictureLayer::get_data() {
-  SkData* the_data = data_.get();
-  if (!the_data) {
+  if (!data_) {
     data_ = picture()->serialize();
-    the_data = data_.get();
   }
-  return the_data;
+  return data_.get();
 }
 
 bool PictureLayer::compare_picture(PictureLayer* other_picture) {
@@ -55,9 +53,6 @@ bool PictureLayer::can_replace(Layer* other) {
     }
     return true;
   }
-  FML_LOG(ERROR) << "PictureLayer replacing some other kind of layer: "
-      << this->picture()->uniqueID()
-      << " @ " << offset_.x() << ", " << offset_.y();
   return false;
 }
 

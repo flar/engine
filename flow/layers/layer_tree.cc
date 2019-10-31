@@ -24,7 +24,7 @@ void LayerTree::RecordBuildTime(fml::TimePoint start) {
   build_finish_ = fml::TimePoint::Now();
 }
 
-void LayerTree::Preroll(CompositorContext::ScopedFrame& frame,
+SkRect LayerTree::Preroll(CompositorContext::ScopedFrame& frame,
                         bool ignore_raster_cache) {
   TRACE_EVENT0("flutter", "LayerTree::Preroll");
   SkColorSpace* color_space =
@@ -46,11 +46,12 @@ void LayerTree::Preroll(CompositorContext::ScopedFrame& frame,
       checkerboard_offscreen_layers_};
 
   root_layer_->Preroll(&context, frame.root_surface_transformation());
-  FML_LOG(ERROR) << "After Dirty Rect: ["
+  FML_LOG(INFO) << "After Dirty Rect: ["
       << context.dirty_rect.left() << ", "
       << context.dirty_rect.top() << ", "
       << context.dirty_rect.width() << " x "
       << context.dirty_rect.height() << "]";
+  return context.dirty_rect;
 }
 
 #if defined(OS_FUCHSIA)

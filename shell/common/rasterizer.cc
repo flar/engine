@@ -304,6 +304,7 @@ RasterStatus Rasterizer::DrawToSurface(flutter::LayerTree& layer_tree) {
   auto compositor_frame = compositor_context_->AcquireFrame(
       surface_->GetContext(),       // skia GrContext
       root_surface_canvas,          // root surface canvas
+      frame->update_bounds(),
       external_view_embedder,       // external view embedder
       root_surface_transformation,  // root surface transformation
       true,                         // instrumentation enabled
@@ -315,6 +316,7 @@ RasterStatus Rasterizer::DrawToSurface(flutter::LayerTree& layer_tree) {
     if (raster_status == RasterStatus::kFailed) {
       return raster_status;
     }
+    frame->add_update(compositor_frame->update_bounds());
     frame->Submit();
     if (external_view_embedder != nullptr) {
       external_view_embedder->SubmitFrame(surface_->GetContext());
@@ -346,11 +348,12 @@ static sk_sp<SkData> ScreenshotLayerTreeAsPicture(
 
   SkMatrix root_surface_transformation;
   root_surface_transformation.reset();
+  SkIRect bounds = SkIRect::MakeSize(tree->frame_size());
 
   // TODO(amirh): figure out how to take a screenshot with embedded UIView.
   // https://github.com/flutter/flutter/issues/23435
   auto frame = compositor_context.AcquireFrame(
-      nullptr, recorder.getRecordingCanvas(), nullptr,
+      nullptr, recorder.getRecordingCanvas(), bounds, nullptr,
       root_surface_transformation, false, nullptr);
 
   frame->Raster(*tree, true);
@@ -400,11 +403,12 @@ static sk_sp<SkData> ScreenshotLayerTreeAsImage(
   // matrix to identity.
   SkMatrix root_surface_transformation;
   root_surface_transformation.reset();
+  SkIRect bounds = SkIRect::MakeSize(tree->frame_size());
 
-  auto frame = compositor_context.AcquireFrame(surface_context, canvas, nullptr,
+  auto frame = compositor_context.AcquireFrame(surface_context, canvas, bounds, nullptr,
                                                root_surface_transformation,
                                                false, nullptr);
-  canvas->clear(SK_ColorTRANSPARENT);
+  // canvas->clear(SK_ColorTRANSPARENT);
   frame->Raster(*tree, true);
   canvas->flush();
 

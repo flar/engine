@@ -22,20 +22,10 @@ class TransformLayer : public ContainerLayer {
         old_tx_layer->PrepareForNewChildren();
         return old_layer;
       }
-      FML_LOG(ERROR) << "Can't use old TransformLayer";
-      logTransform("Old Transform", &old_tx_layer->transform_);
-      logTransform("New Transform", &transform);
     }
     return std::make_shared<flutter::TransformLayer>(transform);
   }
 
-  static void logTransform(std::string label, const SkMatrix* transform) {
-    FML_LOG(ERROR) << label << " {\n"
-        << "  { " << transform->get(0) << ", " << transform->get(1) << ", " << transform->get(2) << " },\n"
-        << "  { " << transform->get(3) << ", " << transform->get(4) << ", " << transform->get(5) << " },\n"
-        << "  { " << transform->get(6) << ", " << transform->get(7) << ", " << transform->get(8) << " },\n"
-        << "}";
-  }
   TransformLayer(const SkMatrix& transform);
   ~TransformLayer() override;
 

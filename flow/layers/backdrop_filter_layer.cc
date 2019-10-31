@@ -15,9 +15,12 @@ void BackdropFilterLayer::Preroll(PrerollContext* context,
                                   const SkMatrix& matrix) {
   if (!context->dirty_rect.isEmpty()) {
     FML_LOG(ERROR) << "******* BackdropFilterLayer must repaint due to dirty rectangle *******";
-    this->set_painted(false);
+    set_painted(false);
   }
   ContainerLayer::Preroll(context, matrix);
+  if (!is_painted()) {
+    set_paint_bounds(kGiantRect);
+  }
 }
 
 void BackdropFilterLayer::Paint(PaintContext& context) const {

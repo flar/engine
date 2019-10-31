@@ -24,7 +24,7 @@ class LayerTree {
 
   ~LayerTree();
 
-  void Preroll(CompositorContext::ScopedFrame& frame,
+  SkRect Preroll(CompositorContext::ScopedFrame& frame,
                bool ignore_raster_cache = false);
 
 #if defined(OS_FUCHSIA)

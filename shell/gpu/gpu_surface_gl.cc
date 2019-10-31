@@ -210,6 +210,7 @@ bool GPUSurfaceGL::CreateOrUpdateSurfaces(const SkISize& size) {
   // Either way, we need to get rid of previous surface.
   onscreen_surface_ = nullptr;
   offscreen_surface_ = nullptr;
+  FML_LOG(ERROR) << "Making new surfaces!!!";
 
   if (size.isEmpty()) {
     FML_LOG(ERROR) << "Cannot create surfaces of empty size.";
@@ -241,6 +242,7 @@ bool GPUSurfaceGL::CreateOrUpdateSurfaces(const SkISize& size) {
 
   onscreen_surface_ = std::move(onscreen_surface);
   offscreen_surface_ = std::move(offscreen_surface);
+  fresh_surfaces_ = true;
 
   return true;
 }
@@ -268,7 +270,7 @@ std::unique_ptr<SurfaceFrame> GPUSurfaceGL::AcquireFrame(const SkISize& size) {
   // external view embedder may want to render to the root surface.
   if (!render_to_surface_) {
     return std::make_unique<SurfaceFrame>(
-        nullptr, [](const SurfaceFrame& surface_frame, SkCanvas* canvas) {
+        nullptr, SkIRect::MakeEmpty(), [](const SurfaceFrame& surface_frame, SkCanvas* canvas) {
           return true;
         });
   }
@@ -287,15 +289,19 @@ std::unique_ptr<SurfaceFrame> GPUSurfaceGL::AcquireFrame(const SkISize& size) {
   SurfaceFrame::SubmitCallback submit_callback =
       [weak = weak_factory_.GetWeakPtr()](const SurfaceFrame& surface_frame,
                                           SkCanvas* canvas) {
-        return weak ? weak->PresentSurface(canvas) : false;
+        return weak ? weak->PresentSurface(canvas, surface_frame.update_bounds()) : false;
       };
 
+  SkIRect update_bounds = fresh_surfaces_
+      ? surface->imageInfo().bounds()
+      : SkIRect::MakeEmpty();
+  fresh_surfaces_ = false;
   std::unique_ptr<SurfaceFrame> result =
-      std::make_unique<SurfaceFrame>(surface, submit_callback);
+      std::make_unique<SurfaceFrame>(surface, update_bounds, submit_callback);
   return result;
 }
 
-bool GPUSurfaceGL::PresentSurface(SkCanvas* canvas) {
+bool GPUSurfaceGL::PresentSurface(SkCanvas* canvas, SkIRect update_bounds) {
   if (delegate_ == nullptr || canvas == nullptr || context_ == nullptr) {
     return false;
   }
@@ -309,6 +315,11 @@ bool GPUSurfaceGL::PresentSurface(SkCanvas* canvas) {
     onscreen_canvas->clear(SK_ColorTRANSPARENT);
     onscreen_canvas->drawImage(offscreen_surface_->makeImageSnapshot(), 0, 0,
                                &paint);
+    if (!update_bounds.isEmpty()) {
+      paint.setColor(SK_ColorRED);
+      paint.setAlphaf(0.25f);
+      onscreen_canvas->drawIRect(update_bounds, paint);
+    }
   }
 
   {
@@ -321,6 +332,7 @@ bool GPUSurfaceGL::PresentSurface(SkCanvas* canvas) {
   }
 
   if (delegate_->GLContextFBOResetAfterPresent()) {
+    FML_LOG(ERROR) << "Remaking onscreen surface after present!!!!!";
     auto current_size =
         SkISize::Make(onscreen_surface_->width(), onscreen_surface_->height());
 
