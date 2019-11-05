@@ -53,6 +53,8 @@ class GPUSurfaceGL : public Surface {
   sk_sp<SkSurface> onscreen_surface_;
   sk_sp<SkSurface> offscreen_surface_;
   bool fresh_surfaces_ = true;
+  SkIRect prev_update_;
+  SkIRect prev_prev_update_;
   bool context_owner_;
   // TODO(38466): Refactor GPU surface APIs take into account the fact that an
   // external view embedder may want to render to the root surface. This is a

@@ -315,9 +315,16 @@ bool GPUSurfaceGL::PresentSurface(SkCanvas* canvas, SkIRect update_bounds) {
     onscreen_canvas->clear(SK_ColorTRANSPARENT);
     onscreen_canvas->drawImage(offscreen_surface_->makeImageSnapshot(), 0, 0,
                                &paint);
+    paint.setColor(SkColorSetARGB(0x20, 0xff, 0x00, 0x00));
+    if (!prev_prev_update_.isEmpty()) {
+      onscreen_canvas->drawIRect(prev_prev_update_, paint);
+    }
+    prev_prev_update_ = prev_update_;
+    if (!prev_update_.isEmpty()) {
+      onscreen_canvas->drawIRect(prev_prev_update_, paint);
+    }
+    prev_update_ = update_bounds;
     if (!update_bounds.isEmpty()) {
-      paint.setColor(SK_ColorRED);
-      paint.setAlphaf(0.25f);
       onscreen_canvas->drawIRect(update_bounds, paint);
     }
   }

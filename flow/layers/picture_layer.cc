@@ -30,14 +30,22 @@ bool PictureLayer::compare_picture(PictureLayer* other_picture) {
   SkPicture* a = picture();
   SkPicture* b = other_picture->picture();
   if (a->uniqueID() == b->uniqueID()) {
+    FML_LOG(INFO) << "Reusing PictureLayer because of matching ID!!!";
     return true;
   }
-  if (a->cullRect() != b->cullRect() ||
-      a->approximateOpCount() != b->approximateOpCount() ||
-      a->approximateBytesUsed() != b->approximateBytesUsed()) {
-    return false;
-  }
-  return get_data()->equals(other_picture->get_data());
+  // if (a->cullRect() != b->cullRect() ||
+  //     a->approximateOpCount() != b->approximateOpCount() ||
+  //     a->approximateBytesUsed() != b->approximateBytesUsed()) {
+  //   FML_LOG(INFO) << "Not reusing PictureLayer because of different sizes";
+  //   return false;
+  // }
+  // if (get_data()->equals(other_picture->get_data())) {
+  //   FML_LOG(ERROR) << "Pictures matched despite other attributes not matching";
+  //   return true;
+  // } else {
+  //   FML_LOG(INFO) << "Wasted a picture serialization only to find out pictures differed";
+  // }
+  return false;
 }
 
 bool PictureLayer::can_replace(Layer* other) {
