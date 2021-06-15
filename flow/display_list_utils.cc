@@ -10,6 +10,8 @@
 #include "third_party/skia/include/core/SkMaskFilter.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "third_party/skia/include/core/SkRSXform.h"
+#include "third_party/skia/include/core/SkTextBlob.h"
+#include "third_party/skia/src/core/SkDrawShadowInfo.h"
 
 namespace flutter {
 
@@ -105,6 +107,13 @@ void DisplayListBoundsCalculator::setImageFilter(sk_sp<SkImageFilter> filter) {
 }
 void DisplayListBoundsCalculator::setMaskFilter(sk_sp<SkMaskFilter> filter) {
   maskFilter_ = filter;
+  maskBlurSigma_ = 0.0;
+}
+void DisplayListBoundsCalculator::setMaskBlurFilter(SkBlurStyle style,
+                                                    SkScalar sigma) {
+  maskFilter_ = nullptr;
+  maskBlurStyle_ = style;
+  maskBlurSigma_ = sigma;
 }
 
 void DisplayListBoundsCalculator::saveLayer(const SkRect* bounds) {
@@ -222,6 +231,17 @@ void DisplayListBoundsCalculator::drawDisplayList(
     const sk_sp<DisplayList> display_list) {
   accumulateRect(display_list->bounds());
 }
+void DisplayListBoundsCalculator::drawTextBlob(const sk_sp<SkTextBlob> blob,
+                                               SkScalar x,
+                                               SkScalar y) {
+  accumulateRect(blob->bounds().makeOffset(x, y));
+}
+void DisplayListBoundsCalculator::drawShadowRec(const SkPath& path,
+                                                const SkDrawShadowRec& rec) {
+  SkRect bounds;
+  SkDrawShadowMetrics::GetLocalBounds(path, rec, SkMatrix::I(), &bounds);
+  accumulateRect(bounds, NON_GEOM);
+}
 void DisplayListBoundsCalculator::drawShadow(const SkPath& path,
                                              const SkColor color,
                                              const SkScalar elevation,
@@ -247,16 +267,20 @@ void DisplayListBoundsCalculator::accumulateRect(const SkRect& rect,
       pad *= miterLimit_;
     dstRect.outset(pad, pad);
   }
-  if (type != NON_GEOM && maskFilter_) {
-    // Just using bondsPaint for its bounds computation skills
-    // If we capture mask filters as the blur sigmas instead
-    // of hiding them inside an uninspectable SkMaskFilter,
-    // we could compute the bounds directly.
-    SkPaint boundsPaint;
-    boundsPaint.setMaskFilter(maskFilter_);
-    boundsPaint.setStyle(SkPaint::Style::kFill_Style);
-    FML_DCHECK(boundsPaint.canComputeFastBounds());
-    dstRect = boundsPaint.computeFastBounds(dstRect, &dstRect);
+  if (type != NON_GEOM) {
+    if (maskFilter_) {
+      // Just using bondsPaint for its bounds computation skills
+      // If we capture mask filters as the blur sigmas instead
+      // of hiding them inside an uninspectable SkMaskFilter,
+      // we could compute the bounds directly.
+      SkPaint boundsPaint;
+      boundsPaint.setMaskFilter(maskFilter_);
+      boundsPaint.setStyle(SkPaint::Style::kFill_Style);
+      FML_DCHECK(boundsPaint.canComputeFastBounds());
+      dstRect = boundsPaint.computeFastBounds(dstRect, &dstRect);
+    } else if (maskBlurSigma_ > 0) {
+      dstRect.outset(3.0 * maskBlurSigma_, 3.0 * maskBlurSigma_);
+    }
   }
   if (imageFilter_) {
     SkIRect outBounds =

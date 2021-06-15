@@ -5,6 +5,7 @@
 #ifndef FLUTTER_FLOW_DISPLAY_LIST_H_
 #define FLUTTER_FLOW_DISPLAY_LIST_H_
 
+#include "third_party/skia/include/core/SkBlurTypes.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkColorFilter.h"
 #include "third_party/skia/include/core/SkImage.h"
@@ -84,10 +85,11 @@ namespace flutter {
   V(ClearImageFilter)               \
                                     \
   V(ClearMaskFilter)                \
-  V(SetMaskFilterNormal)            \
-  V(SetMaskFilterSolid)             \
-  V(SetMaskFilterOuter)             \
-  V(SetMaskFilterInner)             \
+  V(SetMaskFilter)                  \
+  V(SetMaskBlurFilterNormal)        \
+  V(SetMaskBlurFilterSolid)         \
+  V(SetMaskBlurFilterOuter)         \
+  V(SetMaskBlurFilterInner)         \
                                     \
   V(Save)                           \
   V(SaveLayer)                      \
@@ -138,6 +140,9 @@ namespace flutter {
                                     \
   V(DrawSkPicture)                  \
   V(DrawDisplayList)                \
+  V(DrawTextBlob)                   \
+  V(DrawShadowRec)                  \
+                                    \
   V(DrawShadow)                     \
   V(DrawShadowOccluded)
 
@@ -204,10 +209,11 @@ class Dispatcher {
   virtual void setColor(SkColor color) = 0;
   virtual void setBlendMode(SkBlendMode mode) = 0;
   virtual void setFilterQuality(SkFilterQuality quality) = 0;
-  virtual void setShader(sk_sp<SkShader> shader) = 0;
-  virtual void setImageFilter(sk_sp<SkImageFilter> filter) = 0;
-  virtual void setColorFilter(sk_sp<SkColorFilter> filter) = 0;
-  virtual void setMaskFilter(sk_sp<SkMaskFilter> filter) = 0;
+  virtual void setShader(const sk_sp<SkShader> shader) = 0;
+  virtual void setImageFilter(const sk_sp<SkImageFilter> filter) = 0;
+  virtual void setColorFilter(const sk_sp<SkColorFilter> filter) = 0;
+  virtual void setMaskFilter(const sk_sp<SkMaskFilter> filter) = 0;
+  virtual void setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) = 0;
 
   virtual void save() = 0;
   virtual void restore() = 0;
@@ -271,6 +277,10 @@ class Dispatcher {
                          const SkRect* cullRect) = 0;
   virtual void drawPicture(const sk_sp<SkPicture> picture) = 0;
   virtual void drawDisplayList(const sk_sp<DisplayList> display_list) = 0;
+  virtual void drawTextBlob(const sk_sp<SkTextBlob> blob,
+                            SkScalar x,
+                            SkScalar y) = 0;
+  virtual void drawShadowRec(const SkPath&, const SkDrawShadowRec&) = 0;
   virtual void drawShadow(const SkPath& path,
                           const SkColor color,
                           const SkScalar elevation,
@@ -301,6 +311,7 @@ class DisplayListBuilder final : public virtual Dispatcher {
   void setImageFilter(sk_sp<SkImageFilter> filter) override;
   void setColorFilter(sk_sp<SkColorFilter> filter) override;
   void setMaskFilter(sk_sp<SkMaskFilter> filter) override;
+  void setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) override;
 
   void save() override;
   void restore() override;
@@ -364,6 +375,10 @@ class DisplayListBuilder final : public virtual Dispatcher {
                  const SkRect* cullRect) override;
   void drawPicture(const sk_sp<SkPicture> picture) override;
   void drawDisplayList(const sk_sp<DisplayList> display_list) override;
+  void drawTextBlob(const sk_sp<SkTextBlob> blob,
+                    SkScalar x,
+                    SkScalar y) override;
+  void drawShadowRec(const SkPath&, const SkDrawShadowRec&) override;
   void drawShadow(const SkPath& path,
                   const SkColor color,
                   const SkScalar elevation,
@@ -375,6 +390,7 @@ class DisplayListBuilder final : public virtual Dispatcher {
   SkAutoTMalloc<uint8_t> storage_;
   size_t used_ = 0;
   size_t allocated_ = 0;
+  int saveLevel_ = 0;
 
   template <typename T, typename... Args>
   void* push(size_t extra, Args&&... args);

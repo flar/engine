@@ -49,6 +49,7 @@ class IngoreAttributeDispatchHelper : public virtual Dispatcher {
   void setImageFilter(sk_sp<SkImageFilter> filter) override {}
   void setColorFilter(sk_sp<SkColorFilter> filter) override {}
   void setMaskFilter(sk_sp<SkMaskFilter> filter) override {}
+  void setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) override {}
 };
 
 // A utility class that will ignore all Dispatcher methods relating
@@ -204,50 +205,54 @@ class DisplayListBoundsCalculator
   void setMiterLimit(SkScalar limit) override;
   void setImageFilter(sk_sp<SkImageFilter> filter) override;
   void setMaskFilter(sk_sp<SkMaskFilter> filter) override;
+  void setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) override;
 
   void saveLayer(const SkRect* bounds) override;
   void save() override;
   void restore() override;
 
-  virtual void drawPaint() override;
-  virtual void drawColor(SkColor color, SkBlendMode mode) override;
-  virtual void drawLine(const SkPoint& p0, const SkPoint& p1) override;
-  virtual void drawRect(const SkRect& rect) override;
-  virtual void drawOval(const SkRect& bounds) override;
-  virtual void drawCircle(const SkPoint& center, SkScalar radius) override;
-  virtual void drawRRect(const SkRRect& rrect) override;
-  virtual void drawDRRect(const SkRRect& outer, const SkRRect& inner) override;
-  virtual void drawPath(const SkPath& path) override;
-  virtual void drawArc(const SkRect& bounds,
-                       SkScalar start,
-                       SkScalar sweep,
-                       bool useCenter) override;
-  virtual void drawPoints(SkCanvas::PointMode mode,
-                          size_t count,
-                          const SkPoint pts[]) override;
-  virtual void drawVertices(const sk_sp<SkVertices> vertices,
-                            SkBlendMode mode) override;
-  virtual void drawImage(const sk_sp<SkImage> image,
-                         const SkPoint point) override;
-  virtual void drawImageRect(const sk_sp<SkImage> image,
-                             const SkRect& src,
-                             const SkRect& dst) override;
-  virtual void drawImageNine(const sk_sp<SkImage> image,
-                             const SkRect& center,
-                             const SkRect& dst) override;
-  virtual void drawAtlas(const sk_sp<SkImage> atlas,
-                         const SkRSXform xform[],
-                         const SkRect tex[],
-                         const SkColor colors[],
-                         int count,
-                         SkBlendMode mode,
-                         const SkRect* cullRect) override;
-  virtual void drawPicture(const sk_sp<SkPicture> picture) override;
-  virtual void drawDisplayList(const sk_sp<DisplayList> display_list) override;
-  virtual void drawShadow(const SkPath& path,
-                          const SkColor color,
-                          const SkScalar elevation,
-                          bool occludes) override;
+  void drawPaint() override;
+  void drawColor(SkColor color, SkBlendMode mode) override;
+  void drawLine(const SkPoint& p0, const SkPoint& p1) override;
+  void drawRect(const SkRect& rect) override;
+  void drawOval(const SkRect& bounds) override;
+  void drawCircle(const SkPoint& center, SkScalar radius) override;
+  void drawRRect(const SkRRect& rrect) override;
+  void drawDRRect(const SkRRect& outer, const SkRRect& inner) override;
+  void drawPath(const SkPath& path) override;
+  void drawArc(const SkRect& bounds,
+               SkScalar start,
+               SkScalar sweep,
+               bool useCenter) override;
+  void drawPoints(SkCanvas::PointMode mode,
+                  size_t count,
+                  const SkPoint pts[]) override;
+  void drawVertices(const sk_sp<SkVertices> vertices,
+                    SkBlendMode mode) override;
+  void drawImage(const sk_sp<SkImage> image, const SkPoint point) override;
+  void drawImageRect(const sk_sp<SkImage> image,
+                     const SkRect& src,
+                     const SkRect& dst) override;
+  void drawImageNine(const sk_sp<SkImage> image,
+                     const SkRect& center,
+                     const SkRect& dst) override;
+  void drawAtlas(const sk_sp<SkImage> atlas,
+                 const SkRSXform xform[],
+                 const SkRect tex[],
+                 const SkColor colors[],
+                 int count,
+                 SkBlendMode mode,
+                 const SkRect* cullRect) override;
+  void drawPicture(const sk_sp<SkPicture> picture) override;
+  void drawDisplayList(const sk_sp<DisplayList> display_list) override;
+  void drawTextBlob(const sk_sp<SkTextBlob> blob,
+                    SkScalar x,
+                    SkScalar y) override;
+  void drawShadowRec(const SkPath&, const SkDrawShadowRec&) override;
+  void drawShadow(const SkPath& path,
+                  const SkColor color,
+                  const SkScalar elevation,
+                  bool occludes) override;
 
   SkRect getBounds() { return accumulator_.getBounds(); }
 
@@ -263,6 +268,8 @@ class DisplayListBoundsCalculator
   SkScalar strokeWidth_ = 1.0;
   SkScalar miterLimit_ = 4.0;
   sk_sp<SkMaskFilter> maskFilter_;
+  SkBlurStyle maskBlurStyle_;
+  SkScalar maskBlurSigma_ = 0.0;
   sk_sp<SkImageFilter> imageFilter_;
 
   BoundsAccumulator accumulator_;

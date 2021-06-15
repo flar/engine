@@ -55,6 +55,7 @@ fml::RefPtr<Picture> PictureRecorder::endRecording(Dart_Handle dart_picture) {
 
   if (UsingDisplayLists) {
     picture = Picture::Create(dart_picture, display_list_recorder_->build());
+    display_list_recorder_ = nullptr;
   } else {
     picture = Picture::Create(
         dart_picture, UIDartState::CreateGPUObject(

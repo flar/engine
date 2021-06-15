@@ -7,6 +7,8 @@
 #include "flutter/flow/layers/physical_shape_layer.h"
 
 #include "third_party/skia/include/core/SkMaskFilter.h"
+#include "third_party/skia/include/core/SkTextBlob.h"
+#include "third_party/skia/src/core/SkDrawShadowInfo.h"
 
 namespace flutter {
 
@@ -86,6 +88,10 @@ void DisplayListCanvasDispatcher::setColorFilter(sk_sp<SkColorFilter> filter) {
 }
 void DisplayListCanvasDispatcher::setMaskFilter(sk_sp<SkMaskFilter> filter) {
   paint_.setMaskFilter(filter);
+}
+void DisplayListCanvasDispatcher::setMaskBlurFilter(SkBlurStyle style,
+                                                    SkScalar sigma) {
+  paint_.setMaskFilter(SkMaskFilter::MakeBlur(style, sigma));
 }
 
 void DisplayListCanvasDispatcher::save() {
@@ -222,6 +228,15 @@ void DisplayListCanvasDispatcher::drawDisplayList(
     display_list->dispatch(dispatcher);
   }
   canvas_->restoreToCount(save_count);
+}
+void DisplayListCanvasDispatcher::drawTextBlob(const sk_sp<SkTextBlob> blob,
+                                               SkScalar x,
+                                               SkScalar y) {
+  canvas_->drawTextBlob(blob, x, y, paint_);
+}
+void DisplayListCanvasDispatcher::drawShadowRec(const SkPath& path,
+                                                const SkDrawShadowRec& rec) {
+  canvas_->private_draw_shadow_rec(path, rec);
 }
 void DisplayListCanvasDispatcher::drawShadow(const SkPath& path,
                                              const SkColor color,
@@ -395,9 +410,16 @@ void DisplayListCanvasRecorder::onDrawAtlas2(const SkImage* image,
   builder_.drawAtlas(sk_ref_sp(image), xform, src, colors, count, mode, cull);
 }
 
+void DisplayListCanvasRecorder::onDrawTextBlob(const SkTextBlob* blob,
+                                               SkScalar x,
+                                               SkScalar y,
+                                               const SkPaint& paint) {
+  recordPaintAttributes(paint, drawMask_);
+  builder_.drawTextBlob(sk_ref_sp(blob), x, y);
+}
 void DisplayListCanvasRecorder::onDrawShadowRec(const SkPath& path,
                                                 const SkDrawShadowRec& rec) {
-  FML_LOG(ERROR) << "Ignoring shadow";
+  builder_.drawShadowRec(path, rec);
 }
 
 void DisplayListCanvasRecorder::onDrawPicture(const SkPicture* picture,

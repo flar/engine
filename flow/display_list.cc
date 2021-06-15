@@ -12,6 +12,8 @@
 #include "third_party/skia/include/core/SkMaskFilter.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "third_party/skia/include/core/SkRSXform.h"
+#include "third_party/skia/include/core/SkTextBlob.h"
+#include "third_party/skia/src/core/SkDrawShadowInfo.h"
 
 namespace flutter {
 
@@ -171,35 +173,26 @@ DEFINE_FQ_OP(Cubic, SkFilterQuality::kHigh_SkFilterQuality)
 DEFINE_SET_CLEAR_SKREF_OP(Shader, shader)
 DEFINE_SET_CLEAR_SKREF_OP(ImageFilter, filter)
 DEFINE_SET_CLEAR_SKREF_OP(ColorFilter, filter)
+DEFINE_SET_CLEAR_SKREF_OP(MaskFilter, filter)
 #undef DEFINE_SET_CLEAR_SKREF_OP
 
-struct ClearMaskFilterOp final : DLOp {
-  static const auto kType = DisplayListOpType::ClearMaskFilter;
-
-  ClearMaskFilterOp() {}
-
-  void dispatch(Dispatcher& dispatcher) const {
-    dispatcher.setMaskFilter(nullptr);
-  }
-};
-#define DEFINE_MASK_FILTER_OP(name, style)                             \
-  struct SetMaskFilter##name##Op final : DLOp {                        \
-    static const auto kType = DisplayListOpType::SetMaskFilter##name;  \
-                                                                       \
-    SetMaskFilter##name##Op(SkScalar sigma)                            \
-        : filter(SkMaskFilter::MakeBlur(SkBlurStyle::style, sigma)) {} \
-                                                                       \
-    sk_sp<SkMaskFilter> filter;                                        \
-                                                                       \
-    void dispatch(Dispatcher& dispatcher) const {                      \
-      dispatcher.setMaskFilter(filter);                                \
-    }                                                                  \
+#define DEFINE_MASK_BLUR_FILTER_OP(name, style)                           \
+  struct SetMaskBlurFilter##name##Op final : DLOp {                       \
+    static const auto kType = DisplayListOpType::SetMaskBlurFilter##name; \
+                                                                          \
+    SetMaskBlurFilter##name##Op(SkScalar sigma) : sigma(sigma) {}         \
+                                                                          \
+    SkScalar sigma;                                                       \
+                                                                          \
+    void dispatch(Dispatcher& dispatcher) const {                         \
+      dispatcher.setMaskBlurFilter(style, sigma);                         \
+    }                                                                     \
   };
-DEFINE_MASK_FILTER_OP(Normal, kNormal_SkBlurStyle)
-DEFINE_MASK_FILTER_OP(Solid, kSolid_SkBlurStyle)
-DEFINE_MASK_FILTER_OP(Inner, kInner_SkBlurStyle)
-DEFINE_MASK_FILTER_OP(Outer, kOuter_SkBlurStyle)
-#undef DEFINE_MASK_FILTER_OP
+DEFINE_MASK_BLUR_FILTER_OP(Normal, kNormal_SkBlurStyle)
+DEFINE_MASK_BLUR_FILTER_OP(Solid, kSolid_SkBlurStyle)
+DEFINE_MASK_BLUR_FILTER_OP(Inner, kInner_SkBlurStyle)
+DEFINE_MASK_BLUR_FILTER_OP(Outer, kOuter_SkBlurStyle)
+#undef DEFINE_MASK_BLUR_FILTER_OP
 
 struct SaveOp final : DLOp {
   static const auto kType = DisplayListOpType::Save;
@@ -590,6 +583,35 @@ struct DrawDisplayListOp final : DLOp {
   }
 };
 
+struct DrawTextBlobOp final : DLOp {
+  static const auto kType = DisplayListOpType::DrawTextBlob;
+
+  DrawTextBlobOp(const sk_sp<SkTextBlob> blob, SkScalar x, SkScalar y)
+      : blob(blob), x(x), y(y) {}
+
+  const sk_sp<SkTextBlob> blob;
+  const SkScalar x;
+  const SkScalar y;
+
+  void dispatch(Dispatcher& dispatcher) const {
+    dispatcher.drawTextBlob(blob, x, y);
+  }
+};
+
+struct DrawShadowRecOp final : DLOp {
+  static const auto kType = DisplayListOpType::DrawShadowRec;
+
+  DrawShadowRecOp(const SkPath& path, const SkDrawShadowRec& rec)
+      : path(path), rec(rec) {}
+
+  const SkPath path;
+  const SkDrawShadowRec rec;
+
+  void dispatch(Dispatcher& dispatcher) const {
+    dispatcher.drawShadowRec(path, rec);
+  }
+};
+
 #define DEFINE_DRAW_SHADOW_OP(name, occludes)                             \
   struct Draw##name##Op final : DLOp {                                    \
     static const auto kType = DisplayListOpType::Draw##name;              \
@@ -700,6 +722,9 @@ void* DisplayListBuilder::push(size_t pod, Args&&... args) {
 }
 
 sk_sp<DisplayList> DisplayListBuilder::build() {
+  while (saveLevel_ > 0) {
+    restore();
+  }
   size_t used = used_;
   used_ = allocated_ = 0;
   storage_.realloc(used);
@@ -814,16 +839,37 @@ void DisplayListBuilder::setColorFilter(sk_sp<SkColorFilter> filter) {
       : push<ClearColorFilterOp>(0);
 }
 void DisplayListBuilder::setMaskFilter(sk_sp<SkMaskFilter> filter) {
-  // TODO
+  push<SetMaskFilterOp>(0, filter);
+}
+void DisplayListBuilder::setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) {
+  switch (style) {
+    case kNormal_SkBlurStyle:
+      push<SetMaskBlurFilterNormalOp>(0, sigma);
+      break;
+    case kSolid_SkBlurStyle:
+      push<SetMaskBlurFilterSolidOp>(0, sigma);
+      break;
+    case kOuter_SkBlurStyle:
+      push<SetMaskBlurFilterOuterOp>(0, sigma);
+      break;
+    case kInner_SkBlurStyle:
+      push<SetMaskBlurFilterInnerOp>(0, sigma);
+      break;
+  }
 }
 
 void DisplayListBuilder::save() {
+  saveLevel_++;
   push<SaveOp>(0);
 }
 void DisplayListBuilder::restore() {
-  push<RestoreOp>(0);
+  if (saveLevel_ > 0) {
+    push<RestoreOp>(0);
+    saveLevel_--;
+  }
 }
 void DisplayListBuilder::saveLayer(const SkRect* bounds) {
+  saveLevel_++;
   bounds  //
       ? push<SaveLayerBoundsOp>(0, *bounds)
       : push<SaveLayerOp>(0);
@@ -1007,6 +1053,15 @@ void DisplayListBuilder::drawPicture(const sk_sp<SkPicture> picture) {
 void DisplayListBuilder::drawDisplayList(
     const sk_sp<DisplayList> display_list) {
   push<DrawDisplayListOp>(0, display_list);
+}
+void DisplayListBuilder::drawTextBlob(const sk_sp<SkTextBlob> blob,
+                                      SkScalar x,
+                                      SkScalar y) {
+  push<DrawTextBlobOp>(0, blob, x, y);
+}
+void DisplayListBuilder::drawShadowRec(const SkPath& path,
+                                       const SkDrawShadowRec& rec) {
+  push<DrawShadowRecOp>(0, path, rec);
 }
 void DisplayListBuilder::drawShadow(const SkPath& path,
                                     const SkColor color,
