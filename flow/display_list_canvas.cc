@@ -243,6 +243,9 @@ sk_sp<SkColorFilter> DisplayListCanvasDispatcher::makeColorFilter() {
   return invert_filter;
 }
 
+DisplayListCanvasRecorder::DisplayListCanvasRecorder(const SkRect& bounds)
+    : SkCanvasVirtualEnforcer(bounds.width(), bounds.height()) {}
+
 void DisplayListCanvasRecorder::didConcat44(const SkM44& m44) {
   SkMatrix m = m44.asM33();
   if (m.hasPerspective()) {

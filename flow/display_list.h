@@ -162,6 +162,8 @@ class DisplayList : public SkRefCnt {
 
   void dispatch(Dispatcher& ctx) { dispatch(ctx, ptr_, ptr_ + used_); }
 
+  size_t bytes() { return used_; }
+
   const SkRect& bounds() {
     if (bounds_.width() < 0.0) {
       // computeBounds() will leave the variable with a

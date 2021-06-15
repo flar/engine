@@ -5,6 +5,7 @@
 #ifndef FLUTTER_LIB_UI_PAINTING_PICTURE_RECORDER_H_
 #define FLUTTER_LIB_UI_PAINTING_PICTURE_RECORDER_H_
 
+#include "flutter/flow/display_list_canvas.h"
 #include "flutter/lib/ui/dart_wrapper.h"
 #include "third_party/skia/include/core/SkPictureRecorder.h"
 
@@ -21,6 +22,8 @@ class PictureRecorder : public RefCountedDartWrappable<PictureRecorder> {
   FML_FRIEND_MAKE_REF_COUNTED(PictureRecorder);
 
  public:
+  static const bool UsingDisplayLists = true;
+
   static fml::RefPtr<PictureRecorder> Create();
 
   ~PictureRecorder() override;
@@ -37,6 +40,9 @@ class PictureRecorder : public RefCountedDartWrappable<PictureRecorder> {
 
   SkRTreeFactory rtree_factory_;
   SkPictureRecorder picture_recorder_;
+
+  sk_sp<DisplayListCanvasRecorder> display_list_recorder_;
+
   fml::RefPtr<Canvas> canvas_;
 };
 

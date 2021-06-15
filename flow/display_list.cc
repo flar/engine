@@ -683,12 +683,12 @@ void* DisplayListBuilder::push(size_t pod, Args&&... args) {
   size_t size = SkAlignPtr(sizeof(T) + pod);
   SkASSERT(size < (1 << 24));
   if (used_ + size > allocated_) {
-    FML_DCHECK(storage_.get());
     static_assert(SkIsPow2(DL_BUILDER_PAGE),
                   "This math needs updating for non-pow2.");
     // Next greater multiple of DL_BUILDER_PAGE.
     allocated_ = (used_ + size + DL_BUILDER_PAGE) & ~(DL_BUILDER_PAGE - 1);
     storage_.realloc(allocated_);
+    FML_DCHECK(storage_.get());
   }
   SkASSERT(used_ + size <= allocated_);
   auto op = (T*)(storage_.get() + used_);

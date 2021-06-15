@@ -127,8 +127,13 @@ class DisplayListCanvasDispatcher : public Dispatcher {
 
 // Receives all methods on SkCanvas and sends them to a DisplayListBuilder
 class DisplayListCanvasRecorder
-    : public SkCanvasVirtualEnforcer<SkNoDrawCanvas> {
+    : public SkCanvasVirtualEnforcer<SkNoDrawCanvas>,
+      public SkRefCnt {
  public:
+  DisplayListCanvasRecorder(const SkRect& bounds);
+
+  sk_sp<DisplayList> build() { return builder_.build(); }
+
   void didConcat44(const SkM44&) override;
   void didSetM44(const SkM44&) override { FML_DCHECK(false); }
   void didTranslate(SkScalar, SkScalar) override;
@@ -170,7 +175,8 @@ class DisplayListCanvasRecorder
                       SkScalar x,
                       SkScalar y,
                       const SkPaint& paint) override {
-    FML_DCHECK(false);
+    FML_LOG(ERROR) << "Ignoring text blob";
+    // FML_DCHECK(false);
   }
 
   void onDrawPatch(const SkPoint cubics[12],
@@ -208,6 +214,14 @@ class DisplayListCanvasRecorder
                     const SkSamplingOptions&,
                     const SkRect* cull,
                     const SkPaint*) override;
+
+  void onDrawEdgeAAQuad(const SkRect& rect,
+                        const SkPoint clip[4],
+                        SkCanvas::QuadAAFlags aaFlags,
+                        const SkColor4f& color,
+                        SkBlendMode mode) override {
+    FML_DCHECK(0);
+  }
 
   void onDrawAnnotation(const SkRect& rect,
                         const char key[],

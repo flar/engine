@@ -107,9 +107,17 @@ void DisplayListBoundsCalculator::setMaskFilter(sk_sp<SkMaskFilter> filter) {
   maskFilter_ = filter;
 }
 
-void DisplayListBoundsCalculator::saveLayer(const SkRect* bounds) {}
-void DisplayListBoundsCalculator::save() {}
-void DisplayListBoundsCalculator::restore() {}
+void DisplayListBoundsCalculator::saveLayer(const SkRect* bounds) {
+  save();
+}
+void DisplayListBoundsCalculator::save() {
+  SkMatrixTransformDispatchHelper::save();
+  ClipBoundsDispatchHelper::save();
+}
+void DisplayListBoundsCalculator::restore() {
+  SkMatrixTransformDispatchHelper::restore();
+  ClipBoundsDispatchHelper::restore();
+}
 
 void DisplayListBoundsCalculator::drawPaint() {
   // Paints entire surface, doesn't really affect computed bounds;
