@@ -429,13 +429,13 @@ DEFINE_DRAW_ARC_OP(ArcCenter, true)
   struct Draw##name##Op final : DLOp {                                 \
     static const auto kType = DisplayListOpType::Draw##name;           \
                                                                        \
-    Draw##name##Op(size_t len) : len(len) {}                           \
+    Draw##name##Op(size_t count) : count(count) {}                     \
                                                                        \
-    const size_t len;                                                  \
+    const size_t count;                                                \
                                                                        \
     void dispatch(Dispatcher& dispatcher) const {                      \
       const SkPoint* pts = reinterpret_cast<const SkPoint*>(this + 1); \
-      dispatcher.drawPoints(SkCanvas::PointMode::mode, len / 2, pts);  \
+      dispatcher.drawPoints(SkCanvas::PointMode::mode, count, pts);    \
     }                                                                  \
   };
 DEFINE_DRAW_POINTS_OP(Points, kPoints_PointMode);
@@ -460,14 +460,17 @@ struct DrawVerticesOp final : DLOp {
 struct DrawImageOp final : DLOp {
   static const auto kType = DisplayListOpType::DrawImage;
 
-  DrawImageOp(const sk_sp<SkImage> image, const SkPoint& point)
-      : image(image), point(point) {}
+  DrawImageOp(const sk_sp<SkImage> image,
+              const SkPoint& point,
+              const SkSamplingOptions& sampling)
+      : image(image), point(point), sampling(sampling) {}
 
   const sk_sp<SkImage> image;
   const SkPoint point;
+  const SkSamplingOptions sampling;
 
   void dispatch(Dispatcher& dispatcher) const {
-    dispatcher.drawImage(image, point);
+    dispatcher.drawImage(image, point, sampling);
   }
 };
 
@@ -476,15 +479,17 @@ struct DrawImageRectOp final : DLOp {
 
   DrawImageRectOp(const sk_sp<SkImage> image,
                   const SkRect& src,
-                  const SkRect& dst)
-      : image(image), src(src), dst(dst) {}
+                  const SkRect& dst,
+                  const SkSamplingOptions& sampling)
+      : image(image), src(src), dst(dst), sampling(sampling) {}
 
   const sk_sp<SkImage> image;
   const SkRect src;
   const SkRect dst;
+  const SkSamplingOptions sampling;
 
   void dispatch(Dispatcher& dispatcher) const {
-    dispatcher.drawImageRect(image, src, dst);
+    dispatcher.drawImageRect(image, src, dst, sampling);
   }
 };
 
@@ -505,17 +510,62 @@ struct DrawImageNineOp final : DLOp {
   }
 };
 
+struct DrawImageLatticeOp final : DLOp {
+  static const auto kType = DisplayListOpType::DrawImageLattice;
+
+  DrawImageLatticeOp(const sk_sp<SkImage> image,
+                     int xDivCount,
+                     int yDivCount,
+                     int cellCount,
+                     const SkIRect& src,
+                     const SkRect& dst,
+                     SkFilterMode filter)
+      : image(image),
+        xDivCount(xDivCount),
+        yDivCount(yDivCount),
+        cellCount(cellCount),
+        src(src),
+        dst(dst),
+        filter(filter) {}
+
+  const sk_sp<SkImage> image;
+  const int xDivCount;
+  const int yDivCount;
+  const int cellCount;
+  const SkIRect src;
+  const SkRect dst;
+  const SkFilterMode filter;
+
+  void dispatch(Dispatcher& dispatcher) const {
+    const int* xDivs = reinterpret_cast<const int*>(this + 1);
+    const int* yDivs = reinterpret_cast<const int*>(xDivs + xDivCount);
+    const SkColor* colors =
+        (cellCount == 0) ? nullptr
+                         : reinterpret_cast<const SkColor*>(yDivs + yDivCount);
+    const SkCanvas::Lattice::RectType* rTypes =
+        (cellCount == 0) ? nullptr
+                         : reinterpret_cast<const SkCanvas::Lattice::RectType*>(
+                               colors + cellCount);
+    dispatcher.drawImageLattice(
+        image, {xDivs, yDivs, rTypes, xDivCount, yDivCount, &src, colors}, dst,
+        filter);
+  }
+};
+
 #define DRAW_ATLAS_NO_COLORS(tex, count) nullptr
 #define DRAW_ATLAS_HAS_COLORS(tex, count) \
   reinterpret_cast<const SkColor*>(tex + count)
 
-#define DRAW_ATLAS_NO_CULLING_ARGS \
-  const sk_sp<SkImage> atlas, int count, SkBlendMode mode
-#define DRAW_ATLAS_NO_CULLING_INIT atlas(atlas), count(count), mode(mode)
+#define DRAW_ATLAS_NO_CULLING_ARGS                         \
+  const sk_sp<SkImage> atlas, int count, SkBlendMode mode, \
+      const SkSamplingOptions &sampling
+#define DRAW_ATLAS_NO_CULLING_INIT \
+  atlas(atlas), count(count), mode(mode), sampling(sampling)
 #define DRAW_ATLAS_NO_CULLING_FIELDS \
   const sk_sp<SkImage> atlas;        \
   const int count;                   \
-  const SkBlendMode mode
+  const SkBlendMode mode;            \
+  const SkSamplingOptions sampling
 #define DRAW_ATLAS_NO_CULLING_P_ARG nullptr
 
 #define DRAW_ATLAS_HAS_CULLING_ARGS \
@@ -538,7 +588,7 @@ struct DrawImageNineOp final : DLOp {
       const SkRSXform* xform = reinterpret_cast<const SkRSXform*>(this + 1); \
       const SkRect* tex = reinterpret_cast<const SkRect*>(xform + count);    \
       const SkColor* colors = DRAW_ATLAS_##colors(tex, count);               \
-      dispatcher.drawAtlas(atlas, xform, tex, colors, count, mode,           \
+      dispatcher.drawAtlas(atlas, xform, tex, colors, count, mode, sampling, \
                            DRAW_ATLAS_##cull##_P_ARG);                       \
     }                                                                        \
   };
@@ -984,21 +1034,22 @@ void DisplayListBuilder::drawPoints(SkCanvas::PointMode mode,
                                     size_t count,
                                     const SkPoint pts[]) {
   void* data_ptr;
+  int bytes = count * sizeof(SkPoint);
   switch (mode) {
     case SkCanvas::PointMode::kPoints_PointMode:
-      data_ptr = push<DrawPointsOp>(0, count);
+      data_ptr = push<DrawPointsOp>(bytes, count);
       break;
     case SkCanvas::PointMode::kLines_PointMode:
-      data_ptr = push<DrawLinesOp>(0, count);
+      data_ptr = push<DrawLinesOp>(bytes, count);
       break;
     case SkCanvas::PointMode::kPolygon_PointMode:
-      data_ptr = push<DrawPolygonOp>(0, count);
+      data_ptr = push<DrawPolygonOp>(bytes, count);
       break;
     default:
       FML_DCHECK(false);
       return;
   }
-  copy_v(data_ptr, pts, count * 2);
+  copy_v(data_ptr, pts, count);
 }
 void DisplayListBuilder::drawVertices(const sk_sp<SkVertices> vertices,
                                       SkBlendMode mode) {
@@ -1006,18 +1057,37 @@ void DisplayListBuilder::drawVertices(const sk_sp<SkVertices> vertices,
 }
 
 void DisplayListBuilder::drawImage(const sk_sp<SkImage> image,
-                                   const SkPoint point) {
-  push<DrawImageOp>(0, image, point);
+                                   const SkPoint point,
+                                   const SkSamplingOptions& sampling) {
+  push<DrawImageOp>(0, image, point, sampling);
 }
 void DisplayListBuilder::drawImageRect(const sk_sp<SkImage> image,
                                        const SkRect& src,
-                                       const SkRect& dst) {
-  push<DrawImageRectOp>(0, image, src, dst);
+                                       const SkRect& dst,
+                                       const SkSamplingOptions& sampling) {
+  push<DrawImageRectOp>(0, image, src, dst, sampling);
 }
 void DisplayListBuilder::drawImageNine(const sk_sp<SkImage> image,
                                        const SkRect& center,
                                        const SkRect& dst) {
   push<DrawImageNineOp>(0, image, center, dst);
+}
+void DisplayListBuilder::drawImageLattice(const sk_sp<SkImage> image,
+                                          const SkCanvas::Lattice& lattice,
+                                          const SkRect& dst,
+                                          SkFilterMode filter) {
+  int xDivCount = lattice.fXCount;
+  int yDivCount = lattice.fYCount;
+  int cellCount = lattice.fRectTypes ? (xDivCount + 1) * (yDivCount + 1) : 0;
+  size_t bytes =
+      (xDivCount + yDivCount) * sizeof(int) +
+      cellCount * (sizeof(SkColor) + sizeof(SkCanvas::Lattice::RectType));
+  SkASSERT(lattice.fBounds);
+  void* pod = this->push<DrawImageLatticeOp>(bytes, std::move(image), xDivCount,
+                                             yDivCount, cellCount,
+                                             *lattice.fBounds, dst, filter);
+  copy_v(pod, lattice.fXDivs, xDivCount, lattice.fYDivs, yDivCount,
+         lattice.fColors, cellCount, lattice.fRectTypes, cellCount);
 }
 void DisplayListBuilder::drawAtlas(const sk_sp<SkImage> atlas,
                                    const SkRSXform xform[],
@@ -1025,23 +1095,25 @@ void DisplayListBuilder::drawAtlas(const sk_sp<SkImage> atlas,
                                    const SkColor colors[],
                                    int count,
                                    SkBlendMode mode,
+                                   const SkSamplingOptions& sampling,
                                    const SkRect* cullRect) {
   int bytes = count * (sizeof(SkRSXform) + sizeof(SkRect));
   void* data_ptr;
   if (colors) {
     bytes += count * sizeof(SkColor);
     if (cullRect) {
-      data_ptr =
-          push<DrawAtlasColoredCulledOp>(bytes, atlas, count, mode, *cullRect);
+      data_ptr = push<DrawAtlasColoredCulledOp>(bytes, atlas, count, mode,
+                                                sampling, *cullRect);
     } else {
-      data_ptr = push<DrawAtlasColoredOp>(bytes, atlas, count, mode);
+      data_ptr = push<DrawAtlasColoredOp>(bytes, atlas, count, mode, sampling);
     }
     copy_v(data_ptr, xform, count, tex, count, colors, count);
   } else {
     if (cullRect) {
-      data_ptr = push<DrawAtlasCulledOp>(bytes, atlas, count, mode, *cullRect);
+      data_ptr = push<DrawAtlasCulledOp>(bytes, atlas, count, mode, sampling,
+                                         *cullRect);
     } else {
-      data_ptr = push<DrawAtlasOp>(bytes, atlas, count, mode);
+      data_ptr = push<DrawAtlasOp>(bytes, atlas, count, mode, sampling);
     }
     copy_v(data_ptr, xform, count, tex, count);
   }

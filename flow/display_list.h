@@ -133,6 +133,7 @@ namespace flutter {
   V(DrawImage)                      \
   V(DrawImageRect)                  \
   V(DrawImageNine)                  \
+  V(DrawImageLattice)               \
   V(DrawAtlas)                      \
   V(DrawAtlasColored)               \
   V(DrawAtlasCulled)                \
@@ -261,19 +262,27 @@ class Dispatcher {
                           const SkPoint pts[]) = 0;
   virtual void drawVertices(const sk_sp<SkVertices> vertices,
                             SkBlendMode mode) = 0;
-  virtual void drawImage(const sk_sp<SkImage> image, const SkPoint point) = 0;
+  virtual void drawImage(const sk_sp<SkImage> image,
+                         const SkPoint point,
+                         const SkSamplingOptions& sampling) = 0;
   virtual void drawImageRect(const sk_sp<SkImage> image,
                              const SkRect& src,
-                             const SkRect& dst) = 0;
+                             const SkRect& dst,
+                             const SkSamplingOptions& sampling) = 0;
   virtual void drawImageNine(const sk_sp<SkImage> image,
                              const SkRect& center,
                              const SkRect& dst) = 0;
+  virtual void drawImageLattice(const sk_sp<SkImage> image,
+                                const SkCanvas::Lattice& lattice,
+                                const SkRect& dst,
+                                SkFilterMode filter) = 0;
   virtual void drawAtlas(const sk_sp<SkImage> atlas,
                          const SkRSXform xform[],
                          const SkRect tex[],
                          const SkColor colors[],
                          int count,
                          SkBlendMode mode,
+                         const SkSamplingOptions& sampling,
                          const SkRect* cullRect) = 0;
   virtual void drawPicture(const sk_sp<SkPicture> picture) = 0;
   virtual void drawDisplayList(const sk_sp<DisplayList> display_list) = 0;
@@ -359,19 +368,27 @@ class DisplayListBuilder final : public virtual Dispatcher {
                   const SkPoint pts[]) override;
   void drawVertices(const sk_sp<SkVertices> vertices,
                     SkBlendMode mode) override;
-  void drawImage(const sk_sp<SkImage> image, const SkPoint point) override;
+  void drawImage(const sk_sp<SkImage> image,
+                 const SkPoint point,
+                 const SkSamplingOptions& sampling) override;
   void drawImageRect(const sk_sp<SkImage> image,
                      const SkRect& src,
-                     const SkRect& dst) override;
+                     const SkRect& dst,
+                     const SkSamplingOptions& sampling) override;
   void drawImageNine(const sk_sp<SkImage> image,
                      const SkRect& center,
                      const SkRect& dst) override;
+  void drawImageLattice(const sk_sp<SkImage> image,
+                        const SkCanvas::Lattice& lattice,
+                        const SkRect& dst,
+                        SkFilterMode filter) override;
   void drawAtlas(const sk_sp<SkImage> atlas,
                  const SkRSXform xform[],
                  const SkRect tex[],
                  const SkColor colors[],
                  int count,
                  SkBlendMode mode,
+                 const SkSamplingOptions& sampling,
                  const SkRect* cullRect) override;
   void drawPicture(const sk_sp<SkPicture> picture) override;
   void drawDisplayList(const sk_sp<DisplayList> display_list) override;

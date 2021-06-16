@@ -172,14 +172,12 @@ void DisplayListBoundsCalculator::drawArc(const SkRect& bounds,
 void DisplayListBoundsCalculator::drawPoints(SkCanvas::PointMode mode,
                                              size_t count,
                                              const SkPoint pts[]) {
-  if (count > 1) {
+  if (count > 0) {
     BoundsAccumulator ptBounds;
     for (size_t i = 0; i < count; i++) {
       ptBounds.accumulate(pts[i]);
     }
-    if (ptBounds.isNotEmpty()) {
-      accumulateRect(ptBounds.getBounds(), GEOM_STROKE);
-    }
+    accumulateRect(ptBounds.getBounds(), GEOM_STROKE);
   }
 }
 void DisplayListBoundsCalculator::drawVertices(const sk_sp<SkVertices> vertices,
@@ -187,19 +185,29 @@ void DisplayListBoundsCalculator::drawVertices(const sk_sp<SkVertices> vertices,
   accumulateRect(vertices->bounds());
 }
 void DisplayListBoundsCalculator::drawImage(const sk_sp<SkImage> image,
-                                            const SkPoint point) {
+                                            const SkPoint point,
+                                            const SkSamplingOptions& sampling) {
   SkRect bounds = SkRect::Make(image->bounds());
   bounds.offset(point);
   accumulateRect(bounds, NON_GEOM);
 }
-void DisplayListBoundsCalculator::drawImageRect(const sk_sp<SkImage> image,
-                                                const SkRect& src,
-                                                const SkRect& dst) {
+void DisplayListBoundsCalculator::drawImageRect(
+    const sk_sp<SkImage> image,
+    const SkRect& src,
+    const SkRect& dst,
+    const SkSamplingOptions& sampling) {
   accumulateRect(dst, NON_GEOM);
 }
 void DisplayListBoundsCalculator::drawImageNine(const sk_sp<SkImage> image,
                                                 const SkRect& center,
                                                 const SkRect& dst) {
+  accumulateRect(dst, NON_GEOM);
+}
+void DisplayListBoundsCalculator::drawImageLattice(
+    const sk_sp<SkImage> image,
+    const SkCanvas::Lattice& lattice,
+    const SkRect& dst,
+    SkFilterMode filter) {
   accumulateRect(dst, NON_GEOM);
 }
 void DisplayListBoundsCalculator::drawAtlas(const sk_sp<SkImage> atlas,
@@ -208,6 +216,7 @@ void DisplayListBoundsCalculator::drawAtlas(const sk_sp<SkImage> atlas,
                                             const SkColor colors[],
                                             int count,
                                             SkBlendMode mode,
+                                            const SkSamplingOptions& sampling,
                                             const SkRect* cullRect) {
   SkPoint quad[4];
   BoundsAccumulator atlasBounds;

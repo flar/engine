@@ -90,19 +90,27 @@ class DisplayListCanvasDispatcher : public Dispatcher {
                   const SkPoint pts[]) override;
   void drawVertices(const sk_sp<SkVertices> vertices,
                     SkBlendMode mode) override;
-  void drawImage(const sk_sp<SkImage> image, const SkPoint point) override;
+  void drawImage(const sk_sp<SkImage> image,
+                 const SkPoint point,
+                 const SkSamplingOptions& sampling) override;
   void drawImageRect(const sk_sp<SkImage> image,
                      const SkRect& src,
-                     const SkRect& dst) override;
+                     const SkRect& dst,
+                     const SkSamplingOptions& sampling) override;
   void drawImageNine(const sk_sp<SkImage> image,
                      const SkRect& center,
                      const SkRect& dst) override;
+  void drawImageLattice(const sk_sp<SkImage> image,
+                        const SkCanvas::Lattice& lattice,
+                        const SkRect& dst,
+                        SkFilterMode filter) override;
   void drawAtlas(const sk_sp<SkImage> atlas,
                  const SkRSXform xform[],
                  const SkRect tex[],
                  const SkColor colors[],
                  int count,
                  SkBlendMode mode,
+                 const SkSamplingOptions& sampling,
                  const SkRect* cullRect) override;
   void drawPicture(const sk_sp<SkPicture> picture) override;
   void drawDisplayList(const sk_sp<DisplayList> display_list) override;
@@ -204,6 +212,11 @@ class DisplayListCanvasRecorder
                         const SkSamplingOptions&,
                         const SkPaint*,
                         SrcRectConstraint) override;
+  void onDrawImageLattice2(const SkImage*,
+                           const Lattice&,
+                           const SkRect& dst,
+                           SkFilterMode,
+                           const SkPaint*) override;
   void onDrawAtlas2(const SkImage*,
                     const SkRSXform[],
                     const SkRect src[],

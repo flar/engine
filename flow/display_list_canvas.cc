@@ -194,18 +194,28 @@ void DisplayListCanvasDispatcher::drawVertices(const sk_sp<SkVertices> vertices,
   canvas_->drawVertices(vertices, paint_);
 }
 void DisplayListCanvasDispatcher::drawImage(const sk_sp<SkImage> image,
-                                            const SkPoint point) {
-  canvas_->drawImage(image, point.fX, point.fY, sampling_, &paint_);
+                                            const SkPoint point,
+                                            const SkSamplingOptions& sampling) {
+  canvas_->drawImage(image, point.fX, point.fY, sampling, &paint_);
 }
-void DisplayListCanvasDispatcher::drawImageRect(const sk_sp<SkImage> image,
-                                                const SkRect& src,
-                                                const SkRect& dst) {
-  canvas_->drawImageRect(image, dst, sampling_, &paint_);
+void DisplayListCanvasDispatcher::drawImageRect(
+    const sk_sp<SkImage> image,
+    const SkRect& src,
+    const SkRect& dst,
+    const SkSamplingOptions& sampling) {
+  canvas_->drawImageRect(image, dst, sampling, &paint_);
 }
 void DisplayListCanvasDispatcher::drawImageNine(const sk_sp<SkImage> image,
                                                 const SkRect& center,
                                                 const SkRect& dst) {
   canvas_->drawImageNine(image.get(), center.round(), dst, filtering_, &paint_);
+}
+void DisplayListCanvasDispatcher::drawImageLattice(
+    const sk_sp<SkImage> image,
+    const SkCanvas::Lattice& lattice,
+    const SkRect& dst,
+    SkFilterMode filter) {
+  canvas_->drawImageLattice(image.get(), lattice, dst, filter, &paint_);
 }
 void DisplayListCanvasDispatcher::drawAtlas(const sk_sp<SkImage> atlas,
                                             const SkRSXform xform[],
@@ -213,8 +223,9 @@ void DisplayListCanvasDispatcher::drawAtlas(const sk_sp<SkImage> atlas,
                                             const SkColor colors[],
                                             int count,
                                             SkBlendMode mode,
+                                            const SkSamplingOptions& sampling,
                                             const SkRect* cullRect) {
-  canvas_->drawAtlas(atlas.get(), xform, tex, colors, count, mode, sampling_,
+  canvas_->drawAtlas(atlas.get(), xform, tex, colors, count, mode, sampling,
                      cullRect, &paint_);
 }
 void DisplayListCanvasDispatcher::drawPicture(const sk_sp<SkPicture> picture) {
@@ -374,7 +385,7 @@ void DisplayListCanvasRecorder::onDrawImage2(const SkImage* image,
     recordPaintAttributes(SkPaint(), imageMask_);
   }
   // TODO: Update Sampling
-  builder_.drawImage(sk_ref_sp(image), SkPoint::Make(dx, dy));
+  builder_.drawImage(sk_ref_sp(image), SkPoint::Make(dx, dy), sampling);
 }
 void DisplayListCanvasRecorder::onDrawImageRect2(
     const SkImage* image,
@@ -390,7 +401,19 @@ void DisplayListCanvasRecorder::onDrawImageRect2(
     recordPaintAttributes(SkPaint(), imageMask_);
   }
   // TODO: Update Sampling
-  builder_.drawImageRect(sk_ref_sp(image), src, dst);
+  builder_.drawImageRect(sk_ref_sp(image), src, dst, sampling);
+}
+void DisplayListCanvasRecorder::onDrawImageLattice2(const SkImage* image,
+                                                    const Lattice& lattice,
+                                                    const SkRect& dst,
+                                                    SkFilterMode filter,
+                                                    const SkPaint* paint) {
+  if (paint) {
+    recordPaintAttributes(*paint, imageMask_);
+  } else {
+    recordPaintAttributes(SkPaint(), imageMask_);
+  }
+  builder_.drawImageLattice(sk_ref_sp(image), lattice, dst, filter);
 }
 void DisplayListCanvasRecorder::onDrawAtlas2(const SkImage* image,
                                              const SkRSXform xform[],
@@ -406,8 +429,8 @@ void DisplayListCanvasRecorder::onDrawAtlas2(const SkImage* image,
   } else {
     recordPaintAttributes(SkPaint(), imageMask_);
   }
-  // TODO: Update Sampling
-  builder_.drawAtlas(sk_ref_sp(image), xform, src, colors, count, mode, cull);
+  builder_.drawAtlas(sk_ref_sp(image), xform, src, colors, count, mode,
+                     sampling, cull);
 }
 
 void DisplayListCanvasRecorder::onDrawTextBlob(const SkTextBlob* blob,
