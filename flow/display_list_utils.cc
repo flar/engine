@@ -5,6 +5,7 @@
 #include <type_traits>
 
 #include "flutter/flow/display_list_utils.h"
+#include "flutter/flow/layers/physical_shape_layer.h"
 #include "flutter/fml/logging.h"
 
 #include "third_party/skia/include/core/SkMaskFilter.h"
@@ -19,42 +20,115 @@
 
 namespace flutter {
 
-void SkMatrixTransformDispatchHelper::translate(SkScalar tx, SkScalar ty) {
+// clang-format off
+constexpr float invert_color_matrix[20] = {
+  -1.0,    0,    0, 1.0, 0,
+     0, -1.0,    0, 1.0, 0,
+     0,    0, -1.0, 1.0, 0,
+   1.0,  1.0,  1.0, 1.0, 0
+};
+// clang-format on
+
+void SkPaintDispatchHelper::setAA(bool aa) {
+  paint_.setAntiAlias(true);
+}
+void SkPaintDispatchHelper::setDither(bool dither) {
+  paint_.setAntiAlias(false);
+}
+void SkPaintDispatchHelper::setInvertColors(bool invert) {
+  invert_colors_ = invert;
+  paint_.setColorFilter(makeColorFilter());
+}
+void SkPaintDispatchHelper::setCap(SkPaint::Cap cap) {
+  paint_.setStrokeCap(cap);
+}
+void SkPaintDispatchHelper::setJoin(SkPaint::Join join) {
+  paint_.setStrokeJoin(join);
+}
+void SkPaintDispatchHelper::setDrawStyle(SkPaint::Style style) {
+  paint_.setStyle(style);
+}
+void SkPaintDispatchHelper::setStrokeWidth(SkScalar width) {
+  paint_.setStrokeWidth(width);
+}
+void SkPaintDispatchHelper::setMiterLimit(SkScalar limit) {
+  paint_.setStrokeMiter(limit);
+}
+void SkPaintDispatchHelper::setColor(SkColor color) {
+  paint_.setColor(color);
+}
+void SkPaintDispatchHelper::setBlendMode(SkBlendMode mode) {
+  paint_.setBlendMode(mode);
+}
+void SkPaintDispatchHelper::setFilterQuality(SkFilterQuality quality) {
+  paint_.setFilterQuality(quality);
+}
+void SkPaintDispatchHelper::setShader(sk_sp<SkShader> shader) {
+  paint_.setShader(shader);
+}
+void SkPaintDispatchHelper::setImageFilter(sk_sp<SkImageFilter> filter) {
+  paint_.setImageFilter(filter);
+}
+void SkPaintDispatchHelper::setColorFilter(sk_sp<SkColorFilter> filter) {
+  color_filter_ = filter;
+  paint_.setColorFilter(makeColorFilter());
+}
+void SkPaintDispatchHelper::setMaskFilter(sk_sp<SkMaskFilter> filter) {
+  paint_.setMaskFilter(filter);
+}
+void SkPaintDispatchHelper::setMaskBlurFilter(SkBlurStyle style,
+                                              SkScalar sigma) {
+  paint_.setMaskFilter(SkMaskFilter::MakeBlur(style, sigma));
+}
+
+sk_sp<SkColorFilter> SkPaintDispatchHelper::makeColorFilter() {
+  if (!invert_colors_) {
+    return color_filter_;
+  }
+  sk_sp<SkColorFilter> invert_filter =
+      SkColorFilters::Matrix(invert_color_matrix);
+  if (color_filter_) {
+    invert_filter = invert_filter->makeComposed(color_filter_);
+  }
+  return invert_filter;
+}
+
+void SkMatrixDispatchHelper::translate(SkScalar tx, SkScalar ty) {
   matrix_.preTranslate(tx, ty);
 }
-void SkMatrixTransformDispatchHelper::scale(SkScalar sx, SkScalar sy) {
+void SkMatrixDispatchHelper::scale(SkScalar sx, SkScalar sy) {
   matrix_.preScale(sx, sy);
 }
-void SkMatrixTransformDispatchHelper::rotate(SkScalar degrees) {
+void SkMatrixDispatchHelper::rotate(SkScalar degrees) {
   matrix_.preRotate(degrees);
 }
-void SkMatrixTransformDispatchHelper::skew(SkScalar sx, SkScalar sy) {
+void SkMatrixDispatchHelper::skew(SkScalar sx, SkScalar sy) {
   matrix_.preSkew(sx, sy);
 }
-void SkMatrixTransformDispatchHelper::transform2x3(SkScalar mxx,
-                                                   SkScalar mxy,
-                                                   SkScalar mxt,
-                                                   SkScalar myx,
-                                                   SkScalar myy,
-                                                   SkScalar myt) {
+void SkMatrixDispatchHelper::transform2x3(SkScalar mxx,
+                                          SkScalar mxy,
+                                          SkScalar mxt,
+                                          SkScalar myx,
+                                          SkScalar myy,
+                                          SkScalar myt) {
   matrix_.preConcat(SkMatrix::MakeAll(mxx, mxy, mxt, myx, myy, myt, 0, 0, 1));
 }
-void SkMatrixTransformDispatchHelper::transform3x3(SkScalar mxx,
-                                                   SkScalar mxy,
-                                                   SkScalar mxt,
-                                                   SkScalar myx,
-                                                   SkScalar myy,
-                                                   SkScalar myt,
-                                                   SkScalar px,
-                                                   SkScalar py,
-                                                   SkScalar pt) {
+void SkMatrixDispatchHelper::transform3x3(SkScalar mxx,
+                                          SkScalar mxy,
+                                          SkScalar mxt,
+                                          SkScalar myx,
+                                          SkScalar myy,
+                                          SkScalar myt,
+                                          SkScalar px,
+                                          SkScalar py,
+                                          SkScalar pt) {
   matrix_.preConcat(
       SkMatrix::MakeAll(mxx, mxy, mxt, myx, myy, myt, px, py, pt));
 }
-void SkMatrixTransformDispatchHelper::save() {
+void SkMatrixDispatchHelper::save() {
   saved_.push_back(matrix_);
 }
-void SkMatrixTransformDispatchHelper::restore() {
+void SkMatrixDispatchHelper::restore() {
   matrix_ = saved_.back();
   saved_.pop_back();
 }
@@ -73,7 +147,7 @@ void ClipBoundsDispatchHelper::clipPath(const SkPath& path, bool isAA) {
   intersect(path.getBounds());
 }
 void ClipBoundsDispatchHelper::intersect(const SkRect& rect) {
-  SkRect devClipBounds = txSource_->getMatrix().mapRect(rect);
+  SkRect devClipBounds = matrix().mapRect(rect);
   if (!bounds_.intersect(devClipBounds)) {
     bounds_.setEmpty();
   }
@@ -124,11 +198,11 @@ void DisplayListBoundsCalculator::saveLayer(const SkRect* bounds) {
   save();
 }
 void DisplayListBoundsCalculator::save() {
-  SkMatrixTransformDispatchHelper::save();
+  SkMatrixDispatchHelper::save();
   ClipBoundsDispatchHelper::save();
 }
 void DisplayListBoundsCalculator::restore() {
-  SkMatrixTransformDispatchHelper::restore();
+  SkMatrixDispatchHelper::restore();
   ClipBoundsDispatchHelper::restore();
 }
 
@@ -204,7 +278,8 @@ void DisplayListBoundsCalculator::drawImageRect(
 }
 void DisplayListBoundsCalculator::drawImageNine(const sk_sp<SkImage> image,
                                                 const SkRect& center,
-                                                const SkRect& dst) {
+                                                const SkRect& dst,
+                                                SkFilterMode filter) {
   accumulateRect(dst, NON_GEOM);
 }
 void DisplayListBoundsCalculator::drawImageLattice(
@@ -255,30 +330,19 @@ void DisplayListBoundsCalculator::drawTextBlob(const sk_sp<SkTextBlob> blob,
 //   SkDrawShadowMetrics::GetLocalBounds(path, rec, SkMatrix::I(), &bounds);
 //   accumulateRect(bounds, NON_GEOM);
 // }
-const SkScalar kLightHeight = 600;
-const SkScalar kLightRadius = 800;
 void DisplayListBoundsCalculator::drawShadow(const SkPath& path,
                                              const SkColor color,
                                              const SkScalar elevation,
                                              bool occludes) {
-  SkShadowFlags flags = occludes
-                            ? SkShadowFlags::kTransparentOccluder_ShadowFlag
-                            : SkShadowFlags::kNone_ShadowFlag;
-  const SkRect& bounds = path.getBounds();
-  SkScalar shadow_x = (bounds.left() + bounds.right()) / 2;
-  SkScalar shadow_y = bounds.top() - 600.0f;
-  SkRect shadow_bounds;
-  SkShadowUtils::GetLocalBounds(SkMatrix::I(), path,
-                                SkPoint3::Make(0, 0, elevation),
-                                SkPoint3::Make(shadow_x, shadow_y, kLightHeight),
-                                kLightRadius, flags, &shadow_bounds);
-  accumulateRect(shadow_bounds, NON_GEOM);
+  SkRect bounds =
+      PhysicalShapeLayer::ComputeShadowBounds(path.getBounds(), elevation, 1.0);
+  accumulateRect(bounds, NON_GEOM);
 }
 void DisplayListBoundsCalculator::accumulatePoint(const SkPoint& p,
                                                   BoundsType type) {
   if (type == GEOM_FILL && !maskFilter_ && !imageFilter_) {
     SkPoint pDst;
-    getMatrix().mapPoints(&pDst, &p, 1);
+    matrix().mapPoints(&pDst, &p, 1);
     accumulator_.accumulate(pDst);
     return;
   }
@@ -314,7 +378,7 @@ void DisplayListBoundsCalculator::accumulateRect(const SkRect& rect,
                                    SkImageFilter::kForward_MapDirection);
     dstRect.set(outBounds);
   }
-  getMatrix().mapRect(dstRect);
+  matrix().mapRect(dstRect);
   accumulator_.accumulate(dstRect.fLeft, dstRect.fTop);
   accumulator_.accumulate(dstRect.fRight, dstRect.fBottom);
 }

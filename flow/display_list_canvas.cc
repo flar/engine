@@ -15,88 +15,6 @@
 
 namespace flutter {
 
-// clang-format off
-constexpr float invert_color_matrix[20] = {
-  -1.0,    0,    0, 1.0, 0,
-     0, -1.0,    0, 1.0, 0,
-     0,    0, -1.0, 1.0, 0,
-   1.0,  1.0,  1.0, 1.0, 0
-};
-// clang-format on
-
-void DisplayListCanvasDispatcher::setAA(bool aa) {
-  paint_.setAntiAlias(true);
-}
-void DisplayListCanvasDispatcher::setDither(bool dither) {
-  paint_.setAntiAlias(false);
-}
-void DisplayListCanvasDispatcher::setInvertColors(bool invert) {
-  invert_colors_ = invert;
-  paint_.setColorFilter(makeColorFilter());
-}
-void DisplayListCanvasDispatcher::setCap(SkPaint::Cap cap) {
-  paint_.setStrokeCap(cap);
-}
-void DisplayListCanvasDispatcher::setJoin(SkPaint::Join join) {
-  paint_.setStrokeJoin(join);
-}
-void DisplayListCanvasDispatcher::setDrawStyle(SkPaint::Style style) {
-  paint_.setStyle(style);
-}
-void DisplayListCanvasDispatcher::setStrokeWidth(SkScalar width) {
-  paint_.setStrokeWidth(width);
-}
-void DisplayListCanvasDispatcher::setMiterLimit(SkScalar limit) {
-  paint_.setStrokeMiter(limit);
-}
-void DisplayListCanvasDispatcher::setColor(SkColor color) {
-  paint_.setColor(color);
-}
-void DisplayListCanvasDispatcher::setBlendMode(SkBlendMode mode) {
-  paint_.setBlendMode(mode);
-}
-void DisplayListCanvasDispatcher::setFilterQuality(SkFilterQuality quality) {
-  paint_.setFilterQuality(quality);
-  switch (quality) {
-    case SkFilterQuality::kNone_SkFilterQuality:
-      sampling_ = DisplayList::NearestSampling;
-      filtering_ = SkFilterMode::kNearest;
-      break;
-    case SkFilterQuality::kLow_SkFilterQuality:
-      sampling_ = DisplayList::LinearSampling;
-      filtering_ = SkFilterMode::kLinear;
-      break;
-    case SkFilterQuality::kMedium_SkFilterQuality:
-      sampling_ = DisplayList::MipmapSampling;
-      filtering_ = SkFilterMode::kLinear;
-      break;
-    case SkFilterQuality::kHigh_SkFilterQuality:
-      sampling_ = DisplayList::CubicSampling;
-      filtering_ = SkFilterMode::kLinear;
-      break;
-    default:
-      FML_DCHECK(0);
-      return;
-  }
-}
-void DisplayListCanvasDispatcher::setShader(sk_sp<SkShader> shader) {
-  paint_.setShader(shader);
-}
-void DisplayListCanvasDispatcher::setImageFilter(sk_sp<SkImageFilter> filter) {
-  paint_.setImageFilter(filter);
-}
-void DisplayListCanvasDispatcher::setColorFilter(sk_sp<SkColorFilter> filter) {
-  color_filter_ = filter;
-  paint_.setColorFilter(makeColorFilter());
-}
-void DisplayListCanvasDispatcher::setMaskFilter(sk_sp<SkMaskFilter> filter) {
-  paint_.setMaskFilter(filter);
-}
-void DisplayListCanvasDispatcher::setMaskBlurFilter(SkBlurStyle style,
-                                                    SkScalar sigma) {
-  paint_.setMaskFilter(SkMaskFilter::MakeBlur(style, sigma));
-}
-
 void DisplayListCanvasDispatcher::save() {
   canvas_->save();
 }
@@ -104,7 +22,7 @@ void DisplayListCanvasDispatcher::restore() {
   canvas_->restore();
 }
 void DisplayListCanvasDispatcher::saveLayer(const SkRect* bounds) {
-  canvas_->saveLayer(bounds, &paint_);
+  canvas_->saveLayer(bounds, &paint());
 }
 
 void DisplayListCanvasDispatcher::translate(SkScalar tx, SkScalar ty) {
@@ -152,73 +70,74 @@ void DisplayListCanvasDispatcher::clipPath(const SkPath& path, bool isAA) {
 }
 
 void DisplayListCanvasDispatcher::drawPaint() {
-  canvas_->drawPaint(paint_);
+  canvas_->drawPaint(paint());
 }
 void DisplayListCanvasDispatcher::drawColor(SkColor color, SkBlendMode mode) {
   canvas_->drawColor(color, mode);
 }
 void DisplayListCanvasDispatcher::drawLine(const SkPoint& p0,
                                            const SkPoint& p1) {
-  canvas_->drawLine(p0, p1, paint_);
+  canvas_->drawLine(p0, p1, paint());
 }
 void DisplayListCanvasDispatcher::drawRect(const SkRect& rect) {
-  canvas_->drawRect(rect, paint_);
+  canvas_->drawRect(rect, paint());
 }
 void DisplayListCanvasDispatcher::drawOval(const SkRect& bounds) {
-  canvas_->drawOval(bounds, paint_);
+  canvas_->drawOval(bounds, paint());
 }
 void DisplayListCanvasDispatcher::drawCircle(const SkPoint& center,
                                              SkScalar radius) {
-  canvas_->drawCircle(center, radius, paint_);
+  canvas_->drawCircle(center, radius, paint());
 }
 void DisplayListCanvasDispatcher::drawRRect(const SkRRect& rrect) {
-  canvas_->drawRRect(rrect, paint_);
+  canvas_->drawRRect(rrect, paint());
 }
 void DisplayListCanvasDispatcher::drawDRRect(const SkRRect& outer,
                                              const SkRRect& inner) {
-  canvas_->drawDRRect(outer, inner, paint_);
+  canvas_->drawDRRect(outer, inner, paint());
 }
 void DisplayListCanvasDispatcher::drawPath(const SkPath& path) {
-  canvas_->drawPath(path, paint_);
+  canvas_->drawPath(path, paint());
 }
 void DisplayListCanvasDispatcher::drawArc(const SkRect& bounds,
                                           SkScalar start,
                                           SkScalar sweep,
                                           bool useCenter) {
-  canvas_->drawArc(bounds, start, sweep, useCenter, paint_);
+  canvas_->drawArc(bounds, start, sweep, useCenter, paint());
 }
 void DisplayListCanvasDispatcher::drawPoints(SkCanvas::PointMode mode,
                                              size_t count,
                                              const SkPoint pts[]) {
-  canvas_->drawPoints(mode, count, pts, paint_);
+  canvas_->drawPoints(mode, count, pts, paint());
 }
 void DisplayListCanvasDispatcher::drawVertices(const sk_sp<SkVertices> vertices,
                                                SkBlendMode mode) {
-  canvas_->drawVertices(vertices, paint_);
+  canvas_->drawVertices(vertices, paint());
 }
 void DisplayListCanvasDispatcher::drawImage(const sk_sp<SkImage> image,
                                             const SkPoint point,
                                             const SkSamplingOptions& sampling) {
-  canvas_->drawImage(image, point.fX, point.fY, sampling, &paint_);
+  canvas_->drawImage(image, point.fX, point.fY, sampling, &paint());
 }
 void DisplayListCanvasDispatcher::drawImageRect(
     const sk_sp<SkImage> image,
     const SkRect& src,
     const SkRect& dst,
     const SkSamplingOptions& sampling) {
-  canvas_->drawImageRect(image, dst, sampling, &paint_);
+  canvas_->drawImageRect(image, dst, sampling, &paint());
 }
 void DisplayListCanvasDispatcher::drawImageNine(const sk_sp<SkImage> image,
                                                 const SkRect& center,
-                                                const SkRect& dst) {
-  canvas_->drawImageNine(image.get(), center.round(), dst, filtering_, &paint_);
+                                                const SkRect& dst,
+                                                SkFilterMode filter) {
+  canvas_->drawImageNine(image.get(), center.round(), dst, filter, &paint());
 }
 void DisplayListCanvasDispatcher::drawImageLattice(
     const sk_sp<SkImage> image,
     const SkCanvas::Lattice& lattice,
     const SkRect& dst,
     SkFilterMode filter) {
-  canvas_->drawImageLattice(image.get(), lattice, dst, filter, &paint_);
+  canvas_->drawImageLattice(image.get(), lattice, dst, filter, &paint());
 }
 void DisplayListCanvasDispatcher::drawAtlas(const sk_sp<SkImage> atlas,
                                             const SkRSXform xform[],
@@ -229,7 +148,7 @@ void DisplayListCanvasDispatcher::drawAtlas(const sk_sp<SkImage> atlas,
                                             const SkSamplingOptions& sampling,
                                             const SkRect* cullRect) {
   canvas_->drawAtlas(atlas.get(), xform, tex, colors, count, mode, sampling,
-                     cullRect, &paint_);
+                     cullRect, &paint());
 }
 void DisplayListCanvasDispatcher::drawPicture(const sk_sp<SkPicture> picture) {
   canvas_->drawPicture(picture);
@@ -246,7 +165,7 @@ void DisplayListCanvasDispatcher::drawDisplayList(
 void DisplayListCanvasDispatcher::drawTextBlob(const sk_sp<SkTextBlob> blob,
                                                SkScalar x,
                                                SkScalar y) {
-  canvas_->drawTextBlob(blob, x, y, paint_);
+  canvas_->drawTextBlob(blob, x, y, paint());
 }
 // void DisplayListCanvasDispatcher::drawShadowRec(const SkPath& path,
 //                                                 const SkDrawShadowRec& rec) {
@@ -258,18 +177,6 @@ void DisplayListCanvasDispatcher::drawShadow(const SkPath& path,
                                              bool occludes) {
   flutter::PhysicalShapeLayer::DrawShadow(canvas_, path, color, elevation,
                                           occludes, 1.0);
-}
-
-sk_sp<SkColorFilter> DisplayListCanvasDispatcher::makeColorFilter() {
-  if (!invert_colors_) {
-    return color_filter_;
-  }
-  sk_sp<SkColorFilter> invert_filter =
-      SkColorFilters::Matrix(invert_color_matrix);
-  if (color_filter_) {
-    invert_filter = invert_filter->makeComposed(color_filter_);
-  }
-  return invert_filter;
 }
 
 DisplayListCanvasRecorder::DisplayListCanvasRecorder(const SkRect& bounds)
@@ -285,7 +192,8 @@ sk_sp<DisplayList> DisplayListCanvasRecorder::build() {
 void DisplayListCanvasRecorder::didConcat44(const SkM44& m44) {
   SkMatrix m = m44.asM33();
   if (m.hasPerspective()) {
-    builder_->transform3x3(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
+    builder_->transform3x3(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
+                           m[8]);
   } else {
     builder_->transform2x3(m[0], m[1], m[2], m[3], m[4], m[5]);
   }
@@ -438,7 +346,7 @@ void DisplayListCanvasRecorder::onDrawAtlas2(const SkImage* image,
     recordPaintAttributes(SkPaint(), imageMask_);
   }
   builder_->drawAtlas(sk_ref_sp(image), xform, src, colors, count, mode,
-                     sampling, cull);
+                      sampling, cull);
 }
 
 void DisplayListCanvasRecorder::onDrawTextBlob(const SkTextBlob* blob,
@@ -510,7 +418,8 @@ void DisplayListCanvasRecorder::recordPaintAttributes(const SkPaint& paint,
   }
   if ((dataNeeded & filterQualityNeeded_) != 0 &&
       currentFilterQuality_ != paint.getFilterQuality()) {
-    builder_->setFilterQuality(currentFilterQuality_ = paint.getFilterQuality());
+    builder_->setFilterQuality(currentFilterQuality_ =
+                                   paint.getFilterQuality());
   }
   if ((dataNeeded & shaderNeeded_) != 0 &&
       currentShader_.get() != paint.getShader()) {
@@ -519,17 +428,17 @@ void DisplayListCanvasRecorder::recordPaintAttributes(const SkPaint& paint,
   if ((dataNeeded & colorFilterNeeded_) != 0 &&
       currentColorFilter_.get() != paint.getColorFilter()) {
     builder_->setColorFilter(currentColorFilter_ =
-                                sk_ref_sp(paint.getColorFilter()));
+                                 sk_ref_sp(paint.getColorFilter()));
   }
   if ((dataNeeded & imageFilterNeeded_) != 0 &&
       currentImageFilter_.get() != paint.getImageFilter()) {
     builder_->setImageFilter(currentImageFilter_ =
-                                sk_ref_sp(paint.getImageFilter()));
+                                 sk_ref_sp(paint.getImageFilter()));
   }
   if ((dataNeeded & maskFilterNeeded_) != 0 &&
       currentMaskFilter_.get() != paint.getMaskFilter()) {
     builder_->setMaskFilter(currentMaskFilter_ =
-                               sk_ref_sp(paint.getMaskFilter()));
+                                sk_ref_sp(paint.getMaskFilter()));
   }
 }
 

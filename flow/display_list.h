@@ -40,11 +40,9 @@
 // display_list_utils.h: various utility classes to ease implementing
 //                       a Dispatcher, including NOP implementations of
 //                       the attribute, clip, and transform methods,
-//                       a class to track the culling bounds from the
-//                       various clip methods, a class to track an SkMatrix
-//                       from the transform methods and a class to compute
-//                       the culling rect of an entire DisplayList
-//                       A class implementing Dispatcher can inherit from
+//                       classes to track attributes, clips, and transforms
+//                       and a class to compute the bounds of a DisplayList
+//                       Any class implementing Dispatcher can inherit from
 //                       these utility classes to simplify its creation
 
 namespace flutter {
@@ -271,7 +269,8 @@ class Dispatcher {
                              const SkSamplingOptions& sampling) = 0;
   virtual void drawImageNine(const sk_sp<SkImage> image,
                              const SkRect& center,
-                             const SkRect& dst) = 0;
+                             const SkRect& dst,
+                             SkFilterMode filter) = 0;
   virtual void drawImageLattice(const sk_sp<SkImage> image,
                                 const SkCanvas::Lattice& lattice,
                                 const SkRect& dst,
@@ -378,7 +377,8 @@ class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
                      const SkSamplingOptions& sampling) override;
   void drawImageNine(const sk_sp<SkImage> image,
                      const SkRect& center,
-                     const SkRect& dst) override;
+                     const SkRect& dst,
+                     SkFilterMode filter) override;
   void drawImageLattice(const sk_sp<SkImage> image,
                         const SkCanvas::Lattice& lattice,
                         const SkRect& dst,

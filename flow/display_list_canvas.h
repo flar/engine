@@ -6,6 +6,7 @@
 #define FLUTTER_FLOW_DISPLAY_LIST_CANVAS_H_
 
 #include "flutter/flow/display_list.h"
+#include "flutter/flow/display_list_utils.h"
 #include "flutter/fml/logging.h"
 
 #include "third_party/skia/include/core/SkCanvasVirtualEnforcer.h"
@@ -23,26 +24,10 @@
 namespace flutter {
 
 // Receives all methods on Dispatcher and sends them to an SkCanvas
-class DisplayListCanvasDispatcher : public Dispatcher {
+class DisplayListCanvasDispatcher : public virtual Dispatcher,
+                                    public SkPaintDispatchHelper {
  public:
   DisplayListCanvasDispatcher(SkCanvas* canvas) : canvas_(canvas) {}
-
-  void setAA(bool aa) override;
-  void setDither(bool dither) override;
-  void setInvertColors(bool invert) override;
-  void setCap(SkPaint::Cap cap) override;
-  void setJoin(SkPaint::Join join) override;
-  void setDrawStyle(SkPaint::Style style) override;
-  void setStrokeWidth(SkScalar width) override;
-  void setMiterLimit(SkScalar limit) override;
-  void setColor(SkColor color) override;
-  void setBlendMode(SkBlendMode mode) override;
-  void setFilterQuality(SkFilterQuality quality) override;
-  void setShader(sk_sp<SkShader> shader) override;
-  void setImageFilter(sk_sp<SkImageFilter> filter) override;
-  void setColorFilter(sk_sp<SkColorFilter> filter) override;
-  void setMaskFilter(sk_sp<SkMaskFilter> filter) override;
-  void setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) override;
 
   void save() override;
   void restore() override;
@@ -99,7 +84,8 @@ class DisplayListCanvasDispatcher : public Dispatcher {
                      const SkSamplingOptions& sampling) override;
   void drawImageNine(const sk_sp<SkImage> image,
                      const SkRect& center,
-                     const SkRect& dst) override;
+                     const SkRect& dst,
+                     SkFilterMode filter) override;
   void drawImageLattice(const sk_sp<SkImage> image,
                         const SkCanvas::Lattice& lattice,
                         const SkRect& dst,
@@ -124,14 +110,6 @@ class DisplayListCanvasDispatcher : public Dispatcher {
                   bool occludes) override;
 
  private:
-  SkPaint paint_;
-  SkSamplingOptions sampling_ = DisplayList::NearestSampling;
-  SkFilterMode filtering_ = SkFilterMode::kNearest;
-  bool invert_colors_ = false;
-  sk_sp<SkColorFilter> color_filter_;
-
-  sk_sp<SkColorFilter> makeColorFilter();
-
   SkCanvas* canvas_;
 };
 

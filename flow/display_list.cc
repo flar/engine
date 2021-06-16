@@ -501,15 +501,17 @@ struct DrawImageNineOp final : DLOp {
 
   DrawImageNineOp(const sk_sp<SkImage> image,
                   const SkRect& center,
-                  const SkRect& dst)
-      : image(std::move(image)), center(center), dst(dst) {}
+                  const SkRect& dst,
+                  SkFilterMode filter)
+      : image(std::move(image)), center(center), dst(dst), filter(filter) {}
 
   const sk_sp<SkImage> image;
   const SkRect center;
   const SkRect dst;
+  const SkFilterMode filter;
 
   void dispatch(Dispatcher& dispatcher) const {
-    dispatcher.drawImageNine(image, center, dst);
+    dispatcher.drawImageNine(image, center, dst, filter);
   }
 };
 
@@ -1072,8 +1074,9 @@ void DisplayListBuilder::drawImageRect(const sk_sp<SkImage> image,
 }
 void DisplayListBuilder::drawImageNine(const sk_sp<SkImage> image,
                                        const SkRect& center,
-                                       const SkRect& dst) {
-  push<DrawImageNineOp>(0, std::move(image), center, dst);
+                                       const SkRect& dst,
+                                       SkFilterMode filter) {
+  push<DrawImageNineOp>(0, std::move(image), center, dst, filter);
 }
 void DisplayListBuilder::drawImageLattice(const sk_sp<SkImage> image,
                                           const SkCanvas::Lattice& lattice,

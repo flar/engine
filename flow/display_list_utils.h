@@ -7,6 +7,8 @@
 
 #include "flutter/flow/display_list.h"
 
+#include "third_party/skia/include/core/SkMaskFilter.h"
+
 // This file contains various utility classes to ease implementing
 // a Flutter DisplayList Dispatcher, including:
 //
@@ -16,6 +18,9 @@
 //     Empty overrides of all of the associated methods of Dispatcher
 //     for dispatchers that only track some of the rendering operations
 //
+// SkPaintAttributeDispatchHelper:
+//     Tracks the attribute methods and maintains their state in an
+//     SkPaint object.
 // SkMatrixTransformDispatchHelper:
 //     Tracks the transform methods and maintains their state in a
 //     (save/restore stack of) SkMatrix object.
@@ -85,9 +90,41 @@ class IngoreTransformDispatchHelper : public virtual Dispatcher {
                     SkScalar pt) override {}
 };
 
-class SkMatrixDispatchSource {
+// A utility class that will monitor the Dispatcher methods relating
+// to the rendering attributes and accumulate them into an SkPaint
+// which can be accessed at any time via paint().
+class SkPaintDispatchHelper : public virtual Dispatcher {
  public:
-  virtual const SkMatrix& getMatrix() = 0;
+  void setAA(bool aa) override;
+  void setDither(bool dither) override;
+  void setInvertColors(bool invert) override;
+  void setCap(SkPaint::Cap cap) override;
+  void setJoin(SkPaint::Join join) override;
+  void setDrawStyle(SkPaint::Style style) override;
+  void setStrokeWidth(SkScalar width) override;
+  void setMiterLimit(SkScalar limit) override;
+  void setColor(SkColor color) override;
+  void setBlendMode(SkBlendMode mode) override;
+  void setFilterQuality(SkFilterQuality quality) override;
+  void setShader(sk_sp<SkShader> shader) override;
+  void setImageFilter(sk_sp<SkImageFilter> filter) override;
+  void setColorFilter(sk_sp<SkColorFilter> filter) override;
+  void setMaskFilter(sk_sp<SkMaskFilter> filter) override;
+  void setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) override;
+
+  const SkPaint& paint() { return paint_; }
+
+ private:
+  SkPaint paint_;
+  bool invert_colors_ = false;
+  sk_sp<SkColorFilter> color_filter_;
+
+  sk_sp<SkColorFilter> makeColorFilter();
+};
+
+class SkMatrixSource {
+ public:
+  virtual const SkMatrix& matrix() const = 0;
 };
 
 // A utility class that will monitor the Dispatcher methods relating
@@ -97,8 +134,8 @@ class SkMatrixDispatchSource {
 // This class also implements an appropriate stack of transforms via
 // its save() and restore() methods so those methods will need to be
 // forwarded if overridden in more than one super class.
-class SkMatrixTransformDispatchHelper : public virtual Dispatcher,
-                                        public virtual SkMatrixDispatchSource {
+class SkMatrixDispatchHelper : public virtual Dispatcher,
+                               public virtual SkMatrixSource {
  public:
   void translate(SkScalar tx, SkScalar ty) override;
   void scale(SkScalar sx, SkScalar sy) override;
@@ -123,7 +160,7 @@ class SkMatrixTransformDispatchHelper : public virtual Dispatcher,
   void save() override;
   void restore() override;
 
-  const SkMatrix& getMatrix() override { return matrix_; }
+  const SkMatrix& matrix() const override { return matrix_; }
 
  private:
   SkMatrix matrix_;
@@ -134,14 +171,16 @@ class SkMatrixTransformDispatchHelper : public virtual Dispatcher,
 // to the clip and accumulate a conservative bounds into an SkRect
 // which can be accessed at any time via getCullingBounds().
 //
+// The subclass must implement a single virtual method matrix()
+// which will happen automatically if the subclass also inherits
+// from SkMatrixTransformDispatchHelper.
+//
 // This class also implements an appropriate stack of transforms via
 // its save() and restore() methods so those methods will need to be
 // forwarded if overridden in more than one super class.
-class ClipBoundsDispatchHelper : public virtual Dispatcher {
+class ClipBoundsDispatchHelper : public virtual Dispatcher,
+                                 private virtual SkMatrixSource {
  public:
-  ClipBoundsDispatchHelper(SkMatrixDispatchSource* tx_source)
-      : txSource_(tx_source) {}
-
   void clipRect(const SkRect& rect, bool isAA, SkClipOp clip_op) override;
   void clipRRect(const SkRRect& rrect, bool isAA) override;
   void clipPath(const SkPath& path, bool isAA) override;
@@ -149,10 +188,9 @@ class ClipBoundsDispatchHelper : public virtual Dispatcher {
   void save() override;
   void restore() override;
 
-  const SkRect& getCullingBounds() { return bounds_; }
+  const SkRect& getCullingBounds() const { return bounds_; }
 
  private:
-  SkMatrixDispatchSource* txSource_;
   SkRect bounds_;
   std::vector<SkRect> saved_;
 
@@ -173,10 +211,10 @@ class BoundsAccumulator {
       maxY_ = y;
   }
 
-  bool isEmpty() { return minX_ >= maxX_ || minY_ >= maxY_; }
-  bool isNotEmpty() { return minX_ < maxX_ && minY_ < maxY_; }
+  bool isEmpty() const { return minX_ >= maxX_ || minY_ >= maxY_; }
+  bool isNotEmpty() const { return minX_ < maxX_ && minY_ < maxY_; }
 
-  SkRect getBounds() {
+  SkRect getBounds() const {
     return (maxX_ > minX_ && maxY_ > minY_)
                ? SkRect::MakeLTRB(minX_, minY_, maxX_, maxY_)
                : SkRect::MakeEmpty();
@@ -191,14 +229,12 @@ class BoundsAccumulator {
 
 // This class implements all rendering methods and computes a liberal
 // bounds of the rendering operations.
-class DisplayListBoundsCalculator
+class DisplayListBoundsCalculator final
     : public virtual Dispatcher,
       public virtual IngoreAttributeDispatchHelper,
-      public virtual SkMatrixTransformDispatchHelper,
+      public virtual SkMatrixDispatchHelper,
       public virtual ClipBoundsDispatchHelper {
  public:
-  DisplayListBoundsCalculator() : ClipBoundsDispatchHelper(this) {}
-
   void setJoin(SkPaint::Join join) override;
   void setDrawStyle(SkPaint::Style style) override;
   void setStrokeWidth(SkScalar width) override;
@@ -238,7 +274,8 @@ class DisplayListBoundsCalculator
                      const SkSamplingOptions& sampling) override;
   void drawImageNine(const sk_sp<SkImage> image,
                      const SkRect& center,
-                     const SkRect& dst) override;
+                     const SkRect& dst,
+                     SkFilterMode filter) override;
   void drawImageLattice(const sk_sp<SkImage> image,
                         const SkCanvas::Lattice& lattice,
                         const SkRect& dst,
