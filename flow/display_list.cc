@@ -149,26 +149,26 @@ DEFINE_FQ_OP(Mipmap, SkFilterQuality::kMedium_SkFilterQuality)
 DEFINE_FQ_OP(Cubic, SkFilterQuality::kHigh_SkFilterQuality)
 #undef DEFINE_FQ_OP
 
-#define DEFINE_SET_CLEAR_SKREF_OP(name, field)                \
-  struct Clear##name##Op final : DLOp {                       \
-    static const auto kType = DisplayListOpType::Clear##name; \
-                                                              \
-    Clear##name##Op() {}                                      \
-                                                              \
-    void dispatch(Dispatcher& dispatcher) const {             \
-      dispatcher.set##name(nullptr);                          \
-    }                                                         \
-  };                                                          \
-  struct Set##name##Op final : DLOp {                         \
-    static const auto kType = DisplayListOpType::Set##name;   \
-                                                              \
-    Set##name##Op(sk_sp<Sk##name> field) : field(field) {}    \
-                                                              \
-    sk_sp<Sk##name> field;                                    \
-                                                              \
-    void dispatch(Dispatcher& dispatcher) const {             \
-      dispatcher.set##name(field);                            \
-    }                                                         \
+#define DEFINE_SET_CLEAR_SKREF_OP(name, field)                        \
+  struct Clear##name##Op final : DLOp {                               \
+    static const auto kType = DisplayListOpType::Clear##name;         \
+                                                                      \
+    Clear##name##Op() {}                                              \
+                                                                      \
+    void dispatch(Dispatcher& dispatcher) const {                     \
+      dispatcher.set##name(nullptr);                                  \
+    }                                                                 \
+  };                                                                  \
+  struct Set##name##Op final : DLOp {                                 \
+    static const auto kType = DisplayListOpType::Set##name;           \
+                                                                      \
+    Set##name##Op(sk_sp<Sk##name> field) : field(std::move(field)) {} \
+                                                                      \
+    sk_sp<Sk##name> field;                                            \
+                                                                      \
+    void dispatch(Dispatcher& dispatcher) const {                     \
+      dispatcher.set##name(field);                                    \
+    }                                                                 \
   };
 DEFINE_SET_CLEAR_SKREF_OP(Shader, shader)
 DEFINE_SET_CLEAR_SKREF_OP(ImageFilter, filter)
@@ -447,7 +447,7 @@ struct DrawVerticesOp final : DLOp {
   static const auto kType = DisplayListOpType::DrawVertices;
 
   DrawVerticesOp(sk_sp<SkVertices> vertices, SkBlendMode mode)
-      : vertices(vertices), mode(mode) {}
+      : vertices(std::move(vertices)), mode(mode) {}
 
   const sk_sp<SkVertices> vertices;
   const SkBlendMode mode;
@@ -463,7 +463,7 @@ struct DrawImageOp final : DLOp {
   DrawImageOp(const sk_sp<SkImage> image,
               const SkPoint& point,
               const SkSamplingOptions& sampling)
-      : image(image), point(point), sampling(sampling) {}
+      : image(std::move(image)), point(point), sampling(sampling) {}
 
   const sk_sp<SkImage> image;
   const SkPoint point;
@@ -481,7 +481,7 @@ struct DrawImageRectOp final : DLOp {
                   const SkRect& src,
                   const SkRect& dst,
                   const SkSamplingOptions& sampling)
-      : image(image), src(src), dst(dst), sampling(sampling) {}
+      : image(std::move(image)), src(src), dst(dst), sampling(sampling) {}
 
   const sk_sp<SkImage> image;
   const SkRect src;
@@ -499,7 +499,7 @@ struct DrawImageNineOp final : DLOp {
   DrawImageNineOp(const sk_sp<SkImage> image,
                   const SkRect& center,
                   const SkRect& dst)
-      : image(image), center(center), dst(dst) {}
+      : image(std::move(image)), center(center), dst(dst) {}
 
   const sk_sp<SkImage> image;
   const SkRect center;
@@ -520,7 +520,7 @@ struct DrawImageLatticeOp final : DLOp {
                      const SkIRect& src,
                      const SkRect& dst,
                      SkFilterMode filter)
-      : image(image),
+      : image(std::move(image)),
         xDivCount(xDivCount),
         yDivCount(yDivCount),
         cellCount(cellCount),
@@ -560,7 +560,7 @@ struct DrawImageLatticeOp final : DLOp {
   const sk_sp<SkImage> atlas, int count, SkBlendMode mode, \
       const SkSamplingOptions &sampling
 #define DRAW_ATLAS_NO_CULLING_INIT \
-  atlas(atlas), count(count), mode(mode), sampling(sampling)
+  atlas(std::move(atlas)), count(count), mode(mode), sampling(sampling)
 #define DRAW_ATLAS_NO_CULLING_FIELDS \
   const sk_sp<SkImage> atlas;        \
   const int count;                   \
@@ -611,7 +611,7 @@ DEFINE_DRAW_ATLAS_OP(AtlasColoredCulled, HAS_COLORS, HAS_CULLING)
 struct DrawSkPictureOp final : DLOp {
   static const auto kType = DisplayListOpType::DrawSkPicture;
 
-  DrawSkPictureOp(sk_sp<SkPicture> picture) : picture(picture) {}
+  DrawSkPictureOp(sk_sp<SkPicture> picture) : picture(std::move(picture)) {}
 
   sk_sp<SkPicture> picture;
 
@@ -624,7 +624,7 @@ struct DrawDisplayListOp final : DLOp {
   static const auto kType = DisplayListOpType::DrawDisplayList;
 
   DrawDisplayListOp(const sk_sp<DisplayList> display_list)
-      : display_list(display_list) {}
+      : display_list(std::move(display_list)) {}
 
   sk_sp<DisplayList> display_list;
 
@@ -637,7 +637,7 @@ struct DrawTextBlobOp final : DLOp {
   static const auto kType = DisplayListOpType::DrawTextBlob;
 
   DrawTextBlobOp(const sk_sp<SkTextBlob> blob, SkScalar x, SkScalar y)
-      : blob(blob), x(x), y(y) {}
+      : blob(std::move(blob)), x(x), y(y) {}
 
   const sk_sp<SkTextBlob> blob;
   const SkScalar x;
@@ -875,21 +875,21 @@ void DisplayListBuilder::setFilterQuality(SkFilterQuality quality) {
 }
 void DisplayListBuilder::setShader(sk_sp<SkShader> shader) {
   shader  //
-      ? push<SetShaderOp>(0, shader)
+      ? push<SetShaderOp>(0, std::move(shader))
       : push<ClearShaderOp>(0);
 }
 void DisplayListBuilder::setImageFilter(sk_sp<SkImageFilter> filter) {
   filter  //
-      ? push<SetImageFilterOp>(0, filter)
+      ? push<SetImageFilterOp>(0, std::move(filter))
       : push<ClearImageFilterOp>(0);
 }
 void DisplayListBuilder::setColorFilter(sk_sp<SkColorFilter> filter) {
   filter  //
-      ? push<SetColorFilterOp>(0, filter)
+      ? push<SetColorFilterOp>(0, std::move(filter))
       : push<ClearColorFilterOp>(0);
 }
 void DisplayListBuilder::setMaskFilter(sk_sp<SkMaskFilter> filter) {
-  push<SetMaskFilterOp>(0, filter);
+  push<SetMaskFilterOp>(0, std::move(filter));
 }
 void DisplayListBuilder::setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) {
   switch (style) {
@@ -1053,24 +1053,24 @@ void DisplayListBuilder::drawPoints(SkCanvas::PointMode mode,
 }
 void DisplayListBuilder::drawVertices(const sk_sp<SkVertices> vertices,
                                       SkBlendMode mode) {
-  push<DrawVerticesOp>(0, vertices, mode);
+  push<DrawVerticesOp>(0, std::move(vertices), mode);
 }
 
 void DisplayListBuilder::drawImage(const sk_sp<SkImage> image,
                                    const SkPoint point,
                                    const SkSamplingOptions& sampling) {
-  push<DrawImageOp>(0, image, point, sampling);
+  push<DrawImageOp>(0, std::move(image), point, sampling);
 }
 void DisplayListBuilder::drawImageRect(const sk_sp<SkImage> image,
                                        const SkRect& src,
                                        const SkRect& dst,
                                        const SkSamplingOptions& sampling) {
-  push<DrawImageRectOp>(0, image, src, dst, sampling);
+  push<DrawImageRectOp>(0, std::move(image), src, dst, sampling);
 }
 void DisplayListBuilder::drawImageNine(const sk_sp<SkImage> image,
                                        const SkRect& center,
                                        const SkRect& dst) {
-  push<DrawImageNineOp>(0, image, center, dst);
+  push<DrawImageNineOp>(0, std::move(image), center, dst);
 }
 void DisplayListBuilder::drawImageLattice(const sk_sp<SkImage> image,
                                           const SkCanvas::Lattice& lattice,
@@ -1102,34 +1102,36 @@ void DisplayListBuilder::drawAtlas(const sk_sp<SkImage> atlas,
   if (colors) {
     bytes += count * sizeof(SkColor);
     if (cullRect) {
-      data_ptr = push<DrawAtlasColoredCulledOp>(bytes, atlas, count, mode,
-                                                sampling, *cullRect);
+      data_ptr = push<DrawAtlasColoredCulledOp>(bytes, std::move(atlas), count,
+                                                mode, sampling, *cullRect);
     } else {
-      data_ptr = push<DrawAtlasColoredOp>(bytes, atlas, count, mode, sampling);
+      data_ptr = push<DrawAtlasColoredOp>(bytes, std::move(atlas), count, mode,
+                                          sampling);
     }
     copy_v(data_ptr, xform, count, tex, count, colors, count);
   } else {
     if (cullRect) {
-      data_ptr = push<DrawAtlasCulledOp>(bytes, atlas, count, mode, sampling,
-                                         *cullRect);
+      data_ptr = push<DrawAtlasCulledOp>(bytes, std::move(atlas), count, mode,
+                                         sampling, *cullRect);
     } else {
-      data_ptr = push<DrawAtlasOp>(bytes, atlas, count, mode, sampling);
+      data_ptr =
+          push<DrawAtlasOp>(bytes, std::move(atlas), count, mode, sampling);
     }
     copy_v(data_ptr, xform, count, tex, count);
   }
 }
 
 void DisplayListBuilder::drawPicture(const sk_sp<SkPicture> picture) {
-  push<DrawSkPictureOp>(0, picture);
+  push<DrawSkPictureOp>(0, std::move(picture));
 }
 void DisplayListBuilder::drawDisplayList(
     const sk_sp<DisplayList> display_list) {
-  push<DrawDisplayListOp>(0, display_list);
+  push<DrawDisplayListOp>(0, std::move(display_list));
 }
 void DisplayListBuilder::drawTextBlob(const sk_sp<SkTextBlob> blob,
                                       SkScalar x,
                                       SkScalar y) {
-  push<DrawTextBlobOp>(0, blob, x, y);
+  push<DrawTextBlobOp>(0, std::move(blob), x, y);
 }
 void DisplayListBuilder::drawShadowRec(const SkPath& path,
                                        const SkDrawShadowRec& rec) {
