@@ -13,7 +13,10 @@
 #include "third_party/skia/include/core/SkPath.h"
 #include "third_party/skia/include/core/SkRSXform.h"
 #include "third_party/skia/include/core/SkTextBlob.h"
-#include "third_party/skia/src/core/SkDrawShadowInfo.h"
+
+// This header file cannot be included here, but we cannot
+// record calls made by the SkShadowUtils without it.
+// #include "third_party/skia/src/core/SkDrawShadowInfo.h"
 
 namespace flutter {
 
@@ -648,19 +651,19 @@ struct DrawTextBlobOp final : DLOp {
   }
 };
 
-struct DrawShadowRecOp final : DLOp {
-  static const auto kType = DisplayListOpType::DrawShadowRec;
-
-  DrawShadowRecOp(const SkPath& path, const SkDrawShadowRec& rec)
-      : path(path), rec(rec) {}
-
-  const SkPath path;
-  const SkDrawShadowRec rec;
-
-  void dispatch(Dispatcher& dispatcher) const {
-    dispatcher.drawShadowRec(path, rec);
-  }
-};
+// struct DrawShadowRecOp final : DLOp {
+//   static const auto kType = DisplayListOpType::DrawShadowRec;
+//
+//   DrawShadowRecOp(const SkPath& path, const SkDrawShadowRec& rec)
+//       : path(path), rec(rec) {}
+//
+//   const SkPath path;
+//   const SkDrawShadowRec rec;
+//
+//   void dispatch(Dispatcher& dispatcher) const {
+//     dispatcher.drawShadowRec(path, rec);
+//   }
+// };
 
 #define DEFINE_DRAW_SHADOW_OP(name, occludes)                             \
   struct Draw##name##Op final : DLOp {                                    \
@@ -1133,10 +1136,10 @@ void DisplayListBuilder::drawTextBlob(const sk_sp<SkTextBlob> blob,
                                       SkScalar y) {
   push<DrawTextBlobOp>(0, std::move(blob), x, y);
 }
-void DisplayListBuilder::drawShadowRec(const SkPath& path,
-                                       const SkDrawShadowRec& rec) {
-  push<DrawShadowRecOp>(0, path, rec);
-}
+// void DisplayListBuilder::drawShadowRec(const SkPath& path,
+//                                        const SkDrawShadowRec& rec) {
+//   push<DrawShadowRecOp>(0, path, rec);
+// }
 void DisplayListBuilder::drawShadow(const SkPath& path,
                                     const SkColor color,
                                     const SkScalar elevation,

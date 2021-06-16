@@ -85,6 +85,7 @@ fml::RefPtr<Canvas> Canvas::Create(PictureRecorder* recorder,
   fml::RefPtr<Canvas> canvas = fml::MakeRefCounted<Canvas>(
       recorder->BeginRecording(SkRect::MakeLTRB(left, top, right, bottom)));
   recorder->set_canvas(canvas);
+  canvas->builder_ = recorder->builder();
   return canvas;
 }
 
@@ -475,6 +476,16 @@ void Canvas::drawShadow(const CanvasPath* path,
   if (!path) {
     Dart_ThrowException(
         ToDart("Canvas.drawShader called with non-genuine Path."));
+    return;
+  }
+  if (PictureRecorder::UsingDisplayLists) {
+    // The DrawShadow mechanism results in non-public operations to be
+    // performed on the canvas involving an SkDrawShadowRec. Since we
+    // cannot include the header that defines that structure, we cannot
+    // record an operation that it injects into an SkCanvas. To prevent
+    // that situation we bypass the canvas interface and inject the
+    // shadow parameters directly into the underlying DisplayList.
+    builder_->drawShadow(path->path(), color, elevation, transparentOccluder);
     return;
   }
   SkScalar dpr = UIDartState::Current()

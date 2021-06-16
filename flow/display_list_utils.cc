@@ -11,7 +11,11 @@
 #include "third_party/skia/include/core/SkPath.h"
 #include "third_party/skia/include/core/SkRSXform.h"
 #include "third_party/skia/include/core/SkTextBlob.h"
-#include "third_party/skia/src/core/SkDrawShadowInfo.h"
+#include "third_party/skia/include/utils/SkShadowUtils.h"
+
+// This header file cannot be included here, but we cannot
+// record calls made by the SkShadowUtils without it.
+// #include "third_party/skia/src/core/SkDrawShadowInfo.h"
 
 namespace flutter {
 
@@ -245,17 +249,30 @@ void DisplayListBoundsCalculator::drawTextBlob(const sk_sp<SkTextBlob> blob,
                                                SkScalar y) {
   accumulateRect(blob->bounds().makeOffset(x, y));
 }
-void DisplayListBoundsCalculator::drawShadowRec(const SkPath& path,
-                                                const SkDrawShadowRec& rec) {
-  SkRect bounds;
-  SkDrawShadowMetrics::GetLocalBounds(path, rec, SkMatrix::I(), &bounds);
-  accumulateRect(bounds, NON_GEOM);
-}
+// void DisplayListBoundsCalculator::drawShadowRec(const SkPath& path,
+//                                                 const SkDrawShadowRec& rec) {
+//   SkRect bounds;
+//   SkDrawShadowMetrics::GetLocalBounds(path, rec, SkMatrix::I(), &bounds);
+//   accumulateRect(bounds, NON_GEOM);
+// }
+const SkScalar kLightHeight = 600;
+const SkScalar kLightRadius = 800;
 void DisplayListBoundsCalculator::drawShadow(const SkPath& path,
                                              const SkColor color,
                                              const SkScalar elevation,
                                              bool occludes) {
-  // TODO(flar)
+  SkShadowFlags flags = occludes
+                            ? SkShadowFlags::kTransparentOccluder_ShadowFlag
+                            : SkShadowFlags::kNone_ShadowFlag;
+  const SkRect& bounds = path.getBounds();
+  SkScalar shadow_x = (bounds.left() + bounds.right()) / 2;
+  SkScalar shadow_y = bounds.top() - 600.0f;
+  SkRect shadow_bounds;
+  SkShadowUtils::GetLocalBounds(SkMatrix::I(), path,
+                                SkPoint3::Make(0, 0, elevation),
+                                SkPoint3::Make(shadow_x, shadow_y, kLightHeight),
+                                kLightRadius, flags, &shadow_bounds);
+  accumulateRect(shadow_bounds, NON_GEOM);
 }
 void DisplayListBoundsCalculator::accumulatePoint(const SkPoint& p,
                                                   BoundsType type) {

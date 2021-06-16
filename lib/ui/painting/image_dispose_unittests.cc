@@ -6,8 +6,10 @@
 
 #include "flutter/common/task_runners.h"
 #include "flutter/fml/synchronization/waitable_event.h"
+#include "flutter/lib/ui/painting/canvas.h"
 #include "flutter/lib/ui/painting/image.h"
 #include "flutter/lib/ui/painting/picture.h"
+#include "flutter/lib/ui/painting/picture_recorder.h"
 #include "flutter/runtime/dart_vm.h"
 #include "flutter/shell/common/shell_test.h"
 #include "flutter/shell/common/thread_host.h"
@@ -37,6 +39,7 @@ class ImageDisposeTest : public ShellTest {
   }
 
   sk_sp<SkPicture> current_picture_;
+  sk_sp<DisplayList> current_display_list_;
   sk_sp<SkImage> current_image_;
 };
 
@@ -51,9 +54,14 @@ TEST_F(ImageDisposeTest, ImageReleasedAfterFrame) {
     CanvasImage* image = GetNativePeer<CanvasImage>(native_image_handle);
     Picture* picture = GetNativePeer<Picture>(Dart_GetNativeArgument(args, 1));
     ASSERT_FALSE(image->image()->unique());
-    ASSERT_FALSE(picture->picture()->unique());
+    if (PictureRecorder::UsingDisplayLists) {
+      ASSERT_FALSE(picture->display_list()->unique());
+      current_display_list_ = picture->display_list();
+    } else {
+      ASSERT_FALSE(picture->picture()->unique());
+      current_picture_ = picture->picture();
+    }
     current_image_ = image->image();
-    current_picture_ = picture->picture();
 
     Dart_NewFinalizableHandle(Dart_GetNativeArgument(args, 1),
                               &picture_finalizer_latch_, 0, &picture_finalizer);
@@ -94,7 +102,11 @@ TEST_F(ImageDisposeTest, ImageReleasedAfterFrame) {
 
   message_latch_.Wait();
 
-  ASSERT_TRUE(current_picture_);
+  if (PictureRecorder::UsingDisplayLists) {
+    ASSERT_TRUE(current_display_list_);
+  } else {
+    ASSERT_TRUE(current_picture_);
+  }
   ASSERT_TRUE(current_image_);
 
   // Simulate a large notify idle, as the animator would do
@@ -113,8 +125,13 @@ TEST_F(ImageDisposeTest, ImageReleasedAfterFrame) {
   });
   message_latch_.Wait();
 
-  EXPECT_TRUE(current_picture_->unique());
-  current_picture_.reset();
+  if (PictureRecorder::UsingDisplayLists) {
+    EXPECT_TRUE(current_display_list_->unique());
+    current_display_list_.reset();
+  } else {
+    EXPECT_TRUE(current_picture_->unique());
+    current_picture_.reset();
+  }
 
   EXPECT_TRUE(current_image_->unique());
   current_image_.reset();

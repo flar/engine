@@ -180,6 +180,12 @@ class Canvas : public RefCountedDartWrappable<Canvas> {
   // which does not transfer ownership.  For this reason, we hold a raw
   // pointer and manually set to null in Clear.
   SkCanvas* canvas_;
+
+  // A copy of the builder used by the SkCanvas->DisplayList adapter for cases
+  // where we cannot record the SkCanvas method call through the various OnOp()
+  // virtual methods or where we can be more efficient by talking directly in
+  // the DisplayList operation lexicon.
+  sk_sp<DisplayListBuilder> builder_;
 };
 
 }  // namespace flutter

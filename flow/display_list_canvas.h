@@ -117,7 +117,7 @@ class DisplayListCanvasDispatcher : public Dispatcher {
   void drawTextBlob(const sk_sp<SkTextBlob> blob,
                     SkScalar x,
                     SkScalar y) override;
-  void drawShadowRec(const SkPath&, const SkDrawShadowRec&) override;
+  // void drawShadowRec(const SkPath&, const SkDrawShadowRec&) override;
   void drawShadow(const SkPath& path,
                   const SkColor color,
                   const SkScalar elevation,
@@ -142,7 +142,9 @@ class DisplayListCanvasRecorder
  public:
   DisplayListCanvasRecorder(const SkRect& bounds);
 
-  sk_sp<DisplayList> build() { return builder_.build(); }
+  const sk_sp<DisplayListBuilder> builder() { return builder_; }
+
+  sk_sp<DisplayList> build();
 
   void didConcat44(const SkM44&) override;
   void didSetM44(const SkM44&) override { FML_DCHECK(false); }
@@ -250,7 +252,7 @@ class DisplayListCanvasRecorder
                      const SkPaint* paint) override;
 
  private:
-  DisplayListBuilder builder_;
+  sk_sp<DisplayListBuilder> builder_;
 
   // Mask bits for the various attributes that might be needed for a given
   // operation.

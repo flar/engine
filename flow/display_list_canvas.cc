@@ -8,7 +8,10 @@
 
 #include "third_party/skia/include/core/SkMaskFilter.h"
 #include "third_party/skia/include/core/SkTextBlob.h"
-#include "third_party/skia/src/core/SkDrawShadowInfo.h"
+
+// This header file cannot be included here, but we cannot
+// record calls made by the SkShadowUtils without it.
+// #include "third_party/skia/src/core/SkDrawShadowInfo.h"
 
 namespace flutter {
 
@@ -245,10 +248,10 @@ void DisplayListCanvasDispatcher::drawTextBlob(const sk_sp<SkTextBlob> blob,
                                                SkScalar y) {
   canvas_->drawTextBlob(blob, x, y, paint_);
 }
-void DisplayListCanvasDispatcher::drawShadowRec(const SkPath& path,
-                                                const SkDrawShadowRec& rec) {
-  canvas_->private_draw_shadow_rec(path, rec);
-}
+// void DisplayListCanvasDispatcher::drawShadowRec(const SkPath& path,
+//                                                 const SkDrawShadowRec& rec) {
+//   canvas_->private_draw_shadow_rec(path, rec);
+// }
 void DisplayListCanvasDispatcher::drawShadow(const SkPath& path,
                                              const SkColor color,
                                              const SkScalar elevation,
@@ -270,77 +273,84 @@ sk_sp<SkColorFilter> DisplayListCanvasDispatcher::makeColorFilter() {
 }
 
 DisplayListCanvasRecorder::DisplayListCanvasRecorder(const SkRect& bounds)
-    : SkCanvasVirtualEnforcer(bounds.width(), bounds.height()) {}
+    : SkCanvasVirtualEnforcer(bounds.width(), bounds.height()),
+      builder_(sk_make_sp<DisplayListBuilder>()) {}
+
+sk_sp<DisplayList> DisplayListCanvasRecorder::build() {
+  sk_sp<DisplayList> display_list = builder_->build();
+  builder_.reset();
+  return display_list;
+}
 
 void DisplayListCanvasRecorder::didConcat44(const SkM44& m44) {
   SkMatrix m = m44.asM33();
   if (m.hasPerspective()) {
-    builder_.transform3x3(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
+    builder_->transform3x3(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
   } else {
-    builder_.transform2x3(m[0], m[1], m[2], m[3], m[4], m[5]);
+    builder_->transform2x3(m[0], m[1], m[2], m[3], m[4], m[5]);
   }
 }
 void DisplayListCanvasRecorder::didTranslate(SkScalar tx, SkScalar ty) {
-  builder_.translate(tx, ty);
+  builder_->translate(tx, ty);
 }
 void DisplayListCanvasRecorder::didScale(SkScalar sx, SkScalar sy) {
-  builder_.scale(sx, sy);
+  builder_->scale(sx, sy);
 }
 
 void DisplayListCanvasRecorder::onClipRect(const SkRect& rect,
                                            SkClipOp op,
                                            ClipEdgeStyle edgeStyle) {
-  builder_.clipRect(rect, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle, op);
+  builder_->clipRect(rect, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle, op);
 }
 void DisplayListCanvasRecorder::onClipRRect(const SkRRect& rrect,
                                             SkClipOp op,
                                             ClipEdgeStyle edgeStyle) {
   FML_DCHECK(op == SkClipOp::kIntersect);
-  builder_.clipRRect(rrect, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle);
+  builder_->clipRRect(rrect, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle);
 }
 void DisplayListCanvasRecorder::onClipPath(const SkPath& path,
                                            SkClipOp op,
                                            ClipEdgeStyle edgeStyle) {
   FML_DCHECK(op == SkClipOp::kIntersect);
-  builder_.clipPath(path, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle);
+  builder_->clipPath(path, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle);
 }
 
 void DisplayListCanvasRecorder::willSave() {
-  builder_.save();
+  builder_->save();
 }
 SkCanvas::SaveLayerStrategy DisplayListCanvasRecorder::getSaveLayerStrategy(
     const SaveLayerRec& rec) {
-  builder_.saveLayer(rec.fBounds);
+  builder_->saveLayer(rec.fBounds);
   return SaveLayerStrategy::kNoLayer_SaveLayerStrategy;
 }
 void DisplayListCanvasRecorder::didRestore() {
-  builder_.restore();
+  builder_->restore();
 }
 
 void DisplayListCanvasRecorder::onDrawPaint(const SkPaint& paint) {
   recordPaintAttributes(paint, paintMask_);
-  builder_.drawPaint();
+  builder_->drawPaint();
 }
 void DisplayListCanvasRecorder::onDrawRect(const SkRect& rect,
                                            const SkPaint& paint) {
   recordPaintAttributes(paint, drawMask_);
-  builder_.drawRect(rect);
+  builder_->drawRect(rect);
 }
 void DisplayListCanvasRecorder::onDrawRRect(const SkRRect& rrect,
                                             const SkPaint& paint) {
   recordPaintAttributes(paint, drawMask_);
-  builder_.drawRRect(rrect);
+  builder_->drawRRect(rrect);
 }
 void DisplayListCanvasRecorder::onDrawDRRect(const SkRRect& outer,
                                              const SkRRect& inner,
                                              const SkPaint& paint) {
   recordPaintAttributes(paint, drawMask_);
-  builder_.drawDRRect(outer, inner);
+  builder_->drawDRRect(outer, inner);
 }
 void DisplayListCanvasRecorder::onDrawOval(const SkRect& rect,
                                            const SkPaint& paint) {
   recordPaintAttributes(paint, drawMask_);
-  builder_.drawOval(rect);
+  builder_->drawOval(rect);
 }
 void DisplayListCanvasRecorder::onDrawArc(const SkRect& rect,
                                           SkScalar startAngle,
@@ -348,12 +358,12 @@ void DisplayListCanvasRecorder::onDrawArc(const SkRect& rect,
                                           bool useCenter,
                                           const SkPaint& paint) {
   recordPaintAttributes(paint, drawMask_);
-  builder_.drawArc(rect, startAngle, sweepAngle, useCenter);
+  builder_->drawArc(rect, startAngle, sweepAngle, useCenter);
 }
 void DisplayListCanvasRecorder::onDrawPath(const SkPath& path,
                                            const SkPaint& paint) {
   recordPaintAttributes(paint, drawMask_);
-  builder_.drawPath(path);
+  builder_->drawPath(path);
 }
 
 void DisplayListCanvasRecorder::onDrawPoints(SkCanvas::PointMode mode,
@@ -362,16 +372,16 @@ void DisplayListCanvasRecorder::onDrawPoints(SkCanvas::PointMode mode,
                                              const SkPaint& paint) {
   recordPaintAttributes(paint, strokeMask_);
   if (mode == SkCanvas::PointMode::kLines_PointMode && count == 2) {
-    builder_.drawLine(pts[0], pts[1]);
+    builder_->drawLine(pts[0], pts[1]);
   } else {
-    builder_.drawPoints(mode, count, pts);
+    builder_->drawPoints(mode, count, pts);
   }
 }
 void DisplayListCanvasRecorder::onDrawVerticesObject(const SkVertices* vertices,
                                                      SkBlendMode mode,
                                                      const SkPaint& paint) {
   recordPaintAttributes(paint, drawMask_);
-  builder_.drawVertices(sk_ref_sp(vertices), mode);
+  builder_->drawVertices(sk_ref_sp(vertices), mode);
 }
 
 void DisplayListCanvasRecorder::onDrawImage2(const SkImage* image,
@@ -384,8 +394,7 @@ void DisplayListCanvasRecorder::onDrawImage2(const SkImage* image,
   } else {
     recordPaintAttributes(SkPaint(), imageMask_);
   }
-  // TODO: Update Sampling
-  builder_.drawImage(sk_ref_sp(image), SkPoint::Make(dx, dy), sampling);
+  builder_->drawImage(sk_ref_sp(image), SkPoint::Make(dx, dy), sampling);
 }
 void DisplayListCanvasRecorder::onDrawImageRect2(
     const SkImage* image,
@@ -400,8 +409,7 @@ void DisplayListCanvasRecorder::onDrawImageRect2(
   } else {
     recordPaintAttributes(SkPaint(), imageMask_);
   }
-  // TODO: Update Sampling
-  builder_.drawImageRect(sk_ref_sp(image), src, dst, sampling);
+  builder_->drawImageRect(sk_ref_sp(image), src, dst, sampling);
 }
 void DisplayListCanvasRecorder::onDrawImageLattice2(const SkImage* image,
                                                     const Lattice& lattice,
@@ -413,7 +421,7 @@ void DisplayListCanvasRecorder::onDrawImageLattice2(const SkImage* image,
   } else {
     recordPaintAttributes(SkPaint(), imageMask_);
   }
-  builder_.drawImageLattice(sk_ref_sp(image), lattice, dst, filter);
+  builder_->drawImageLattice(sk_ref_sp(image), lattice, dst, filter);
 }
 void DisplayListCanvasRecorder::onDrawAtlas2(const SkImage* image,
                                              const SkRSXform xform[],
@@ -429,7 +437,7 @@ void DisplayListCanvasRecorder::onDrawAtlas2(const SkImage* image,
   } else {
     recordPaintAttributes(SkPaint(), imageMask_);
   }
-  builder_.drawAtlas(sk_ref_sp(image), xform, src, colors, count, mode,
+  builder_->drawAtlas(sk_ref_sp(image), xform, src, colors, count, mode,
                      sampling, cull);
 }
 
@@ -438,11 +446,12 @@ void DisplayListCanvasRecorder::onDrawTextBlob(const SkTextBlob* blob,
                                                SkScalar y,
                                                const SkPaint& paint) {
   recordPaintAttributes(paint, drawMask_);
-  builder_.drawTextBlob(sk_ref_sp(blob), x, y);
+  builder_->drawTextBlob(sk_ref_sp(blob), x, y);
 }
 void DisplayListCanvasRecorder::onDrawShadowRec(const SkPath& path,
                                                 const SkDrawShadowRec& rec) {
-  builder_.drawShadowRec(path, rec);
+  // builder_->drawShadowRec(path, rec);
+  FML_DCHECK(false);
 }
 
 void DisplayListCanvasRecorder::onDrawPicture(const SkPicture* picture,
@@ -450,23 +459,23 @@ void DisplayListCanvasRecorder::onDrawPicture(const SkPicture* picture,
                                               const SkPaint* paint) {
   FML_DCHECK(matrix == nullptr);
   FML_DCHECK(paint == nullptr);
-  builder_.drawPicture(sk_ref_sp(picture));
+  builder_->drawPicture(sk_ref_sp(picture));
 }
 
 void DisplayListCanvasRecorder::recordPaintAttributes(const SkPaint& paint,
                                                       int dataNeeded) {
   if ((dataNeeded & aaNeeded_) != 0 && currentAA_ != paint.isAntiAlias()) {
-    builder_.setAA(currentAA_ = paint.isAntiAlias());
+    builder_->setAA(currentAA_ = paint.isAntiAlias());
   }
   if ((dataNeeded & ditherNeeded_) != 0 && currentDither_ != paint.isDither()) {
-    builder_.setDither(currentDither_ = paint.isDither());
+    builder_->setDither(currentDither_ = paint.isDither());
   }
   if ((dataNeeded & colorNeeded_) != 0 && currentColor_ != paint.getColor()) {
-    builder_.setColor(currentColor_ = paint.getColor());
+    builder_->setColor(currentColor_ = paint.getColor());
   }
   if ((dataNeeded & blendNeeded_) != 0 &&
       currentBlendMode_ != paint.getBlendMode()) {
-    builder_.setBlendMode(currentBlendMode_ = paint.getBlendMode());
+    builder_->setBlendMode(currentBlendMode_ = paint.getBlendMode());
   }
   // invert colors is a Flutter::Paint thing, not an SkPaint thing
   // if ((dataNeeded & invertColorsNeeded_) != 0 &&
@@ -479,7 +488,7 @@ void DisplayListCanvasRecorder::recordPaintAttributes(const SkPaint& paint,
   if ((dataNeeded & paintStyleNeeded_) != 0) {
     if (currentPaintStyle_ != paint.getStyle()) {
       FML_DCHECK(paint.getStyle() != SkPaint::kStrokeAndFill_Style);
-      builder_.setDrawStyle(currentPaintStyle_ = paint.getStyle());
+      builder_->setDrawStyle(currentPaintStyle_ = paint.getStyle());
     }
     if (currentPaintStyle_ == SkPaint::Style::kStroke_Style) {
       dataNeeded |= strokeStyleNeeded_;
@@ -487,39 +496,39 @@ void DisplayListCanvasRecorder::recordPaintAttributes(const SkPaint& paint,
   }
   if ((dataNeeded & strokeStyleNeeded_) != 0) {
     if (currentStrokeWidth_ != paint.getStrokeWidth()) {
-      builder_.setStrokeWidth(currentStrokeWidth_ = paint.getStrokeWidth());
+      builder_->setStrokeWidth(currentStrokeWidth_ = paint.getStrokeWidth());
     }
     if (currentStrokeCap_ != paint.getStrokeCap()) {
-      builder_.setCap(currentStrokeCap_ = paint.getStrokeCap());
+      builder_->setCap(currentStrokeCap_ = paint.getStrokeCap());
     }
     if (currentStrokeJoin_ != paint.getStrokeJoin()) {
-      builder_.setJoin(currentStrokeJoin_ = paint.getStrokeJoin());
+      builder_->setJoin(currentStrokeJoin_ = paint.getStrokeJoin());
     }
     if (currentMiterLimit_ != paint.getStrokeMiter()) {
-      builder_.setMiterLimit(currentMiterLimit_ = paint.getStrokeMiter());
+      builder_->setMiterLimit(currentMiterLimit_ = paint.getStrokeMiter());
     }
   }
   if ((dataNeeded & filterQualityNeeded_) != 0 &&
       currentFilterQuality_ != paint.getFilterQuality()) {
-    builder_.setFilterQuality(currentFilterQuality_ = paint.getFilterQuality());
+    builder_->setFilterQuality(currentFilterQuality_ = paint.getFilterQuality());
   }
   if ((dataNeeded & shaderNeeded_) != 0 &&
       currentShader_.get() != paint.getShader()) {
-    builder_.setShader(currentShader_ = sk_ref_sp(paint.getShader()));
+    builder_->setShader(currentShader_ = sk_ref_sp(paint.getShader()));
   }
   if ((dataNeeded & colorFilterNeeded_) != 0 &&
       currentColorFilter_.get() != paint.getColorFilter()) {
-    builder_.setColorFilter(currentColorFilter_ =
+    builder_->setColorFilter(currentColorFilter_ =
                                 sk_ref_sp(paint.getColorFilter()));
   }
   if ((dataNeeded & imageFilterNeeded_) != 0 &&
       currentImageFilter_.get() != paint.getImageFilter()) {
-    builder_.setImageFilter(currentImageFilter_ =
+    builder_->setImageFilter(currentImageFilter_ =
                                 sk_ref_sp(paint.getImageFilter()));
   }
   if ((dataNeeded & maskFilterNeeded_) != 0 &&
       currentMaskFilter_.get() != paint.getMaskFilter()) {
-    builder_.setMaskFilter(currentMaskFilter_ =
+    builder_->setMaskFilter(currentMaskFilter_ =
                                sk_ref_sp(paint.getMaskFilter()));
   }
 }

@@ -142,7 +142,7 @@ namespace flutter {
   V(DrawSkPicture)                  \
   V(DrawDisplayList)                \
   V(DrawTextBlob)                   \
-  V(DrawShadowRec)                  \
+  /* V(DrawShadowRec) */            \
                                     \
   V(DrawShadow)                     \
   V(DrawShadowOccluded)
@@ -289,7 +289,8 @@ class Dispatcher {
   virtual void drawTextBlob(const sk_sp<SkTextBlob> blob,
                             SkScalar x,
                             SkScalar y) = 0;
-  virtual void drawShadowRec(const SkPath&, const SkDrawShadowRec&) = 0;
+  // Unfortunately SkDrawShadowRec requires including an internal Skia header
+  // virtual void drawShadowRec(const SkPath&, const SkDrawShadowRec&) = 0;
   virtual void drawShadow(const SkPath& path,
                           const SkColor color,
                           const SkScalar elevation,
@@ -301,7 +302,7 @@ class Dispatcher {
 // If there is some code that already renders to an SkCanvas object,
 // those rendering commands can be captured into a DisplayList using
 // the DisplayListCanvasRecorder class.
-class DisplayListBuilder final : public virtual Dispatcher {
+class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
  public:
   ~DisplayListBuilder();
 
@@ -395,7 +396,7 @@ class DisplayListBuilder final : public virtual Dispatcher {
   void drawTextBlob(const sk_sp<SkTextBlob> blob,
                     SkScalar x,
                     SkScalar y) override;
-  void drawShadowRec(const SkPath&, const SkDrawShadowRec&) override;
+  // void drawShadowRec(const SkPath&, const SkDrawShadowRec&) override;
   void drawShadow(const SkPath& path,
                   const SkColor color,
                   const SkScalar elevation,
