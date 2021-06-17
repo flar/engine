@@ -692,7 +692,9 @@ void DisplayList::computeBounds() {
   bounds_ = calculator.getBounds();
 }
 
-void DisplayList::dispatch(Dispatcher& dispatcher, uint8_t* ptr, uint8_t* end) {
+void DisplayList::dispatch(Dispatcher& dispatcher,
+                           uint8_t* ptr,
+                           uint8_t* end) const {
   while (ptr < end) {
     auto op = (const DLOp*)ptr;
     ptr += op->size;
@@ -738,7 +740,7 @@ static void DisposeOps(uint8_t* ptr, uint8_t* end) {
   }
 }
 
-void DisplayList::renderTo(SkCanvas* canvas) {
+void DisplayList::renderTo(SkCanvas* canvas) const {
   DisplayListCanvasDispatcher dispatcher(canvas);
   dispatch(dispatcher);
 }

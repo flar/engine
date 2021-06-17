@@ -164,11 +164,11 @@ class DisplayList : public SkRefCnt {
 
   ~DisplayList();
 
-  void dispatch(Dispatcher& ctx) { dispatch(ctx, ptr_, ptr_ + used_); }
+  void dispatch(Dispatcher& ctx) const { dispatch(ctx, ptr_, ptr_ + used_); }
 
-  void renderTo(SkCanvas* canvas);
+  void renderTo(SkCanvas* canvas) const;
 
-  size_t bytes() { return used_; }
+  size_t bytes() const { return used_; }
 
   const SkRect& bounds() {
     if (bounds_.width() < 0.0) {
@@ -188,7 +188,7 @@ class DisplayList : public SkRefCnt {
   SkRect bounds_;
 
   void computeBounds();
-  void dispatch(Dispatcher& ctx, uint8_t* ptr, uint8_t* end);
+  void dispatch(Dispatcher& ctx, uint8_t* ptr, uint8_t* end) const;
 
   friend class DisplayListBuilder;
 };

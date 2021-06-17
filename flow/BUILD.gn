@@ -149,6 +149,7 @@ if (enable_unittests) {
     testonly = true
 
     sources = [
+      "display_list_canvas_unittests.cc",
       "embedded_view_params_unittests.cc",
       "flow_run_all_unittests.cc",
       "flow_test_utils.cc",
