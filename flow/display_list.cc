@@ -5,6 +5,7 @@
 #include <type_traits>
 
 #include "flutter/flow/display_list.h"
+#include "flutter/flow/display_list_canvas.h"
 #include "flutter/flow/display_list_utils.h"
 #include "flutter/fml/logging.h"
 
@@ -735,6 +736,11 @@ static void DisposeOps(uint8_t* ptr, uint8_t* end) {
         return;
     }
   }
+}
+
+void DisplayList::renderTo(SkCanvas* canvas) {
+  DisplayListCanvasDispatcher dispatcher(canvas);
+  dispatch(dispatcher);
 }
 
 DisplayList::~DisplayList() {

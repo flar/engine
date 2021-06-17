@@ -64,8 +64,7 @@ void DisplayListLayer::Paint(PaintContext& context) const {
 
   // TODO(flar): implement DisplayList raster caching
 
-  DisplayListCanvasDispatcher dispatcher(context.leaf_nodes_canvas);
-  display_list_->dispatch(dispatcher);
+  display_list_->renderTo(context.leaf_nodes_canvas);
 
   SkPaint paint;
   paint.setColor(is_complex_

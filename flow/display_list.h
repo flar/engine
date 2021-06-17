@@ -166,6 +166,8 @@ class DisplayList : public SkRefCnt {
 
   void dispatch(Dispatcher& ctx) { dispatch(ctx, ptr_, ptr_ + used_); }
 
+  void renderTo(SkCanvas* canvas);
+
   size_t bytes() { return used_; }
 
   const SkRect& bounds() {

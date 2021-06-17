@@ -408,7 +408,17 @@ void Canvas::drawPicture(Picture* picture) {
         ToDart("Canvas.drawPicture called with non-genuine Picture."));
     return;
   }
-  canvas_->drawPicture(picture->picture().get());
+  if (picture->picture()) {
+    canvas_->drawPicture(picture->picture().get());
+  } else if (picture->display_list()) {
+    if (PictureRecorder::UsingDisplayLists) {
+      builder()->drawDisplayList(picture->display_list());
+    } else {
+      picture->display_list()->renderTo(canvas_);
+    }
+  } else {
+    FML_DCHECK(false);
+  }
 }
 
 void Canvas::drawPoints(const Paint& paint,
