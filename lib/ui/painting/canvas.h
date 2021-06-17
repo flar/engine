@@ -181,11 +181,16 @@ class Canvas : public RefCountedDartWrappable<Canvas> {
   // pointer and manually set to null in Clear.
   SkCanvas* canvas_;
 
-  // A copy of the builder used by the SkCanvas->DisplayList adapter for cases
+  // A copy of the recorder used by the SkCanvas->DisplayList adapter for cases
   // where we cannot record the SkCanvas method call through the various OnOp()
   // virtual methods or where we can be more efficient by talking directly in
-  // the DisplayList operation lexicon.
-  sk_sp<DisplayListBuilder> builder_;
+  // the DisplayList operation lexicon. The recorder has a method for recording
+  // paint attributes from an SkPaint and an operation type as well as access
+  // to the raw DisplayListBuilder for emitting custom rendering operations.
+  sk_sp<DisplayListCanvasRecorder> display_list_recorder_;
+  sk_sp<DisplayListBuilder> builder() {
+    return display_list_recorder_->builder();
+  }
 };
 
 }  // namespace flutter

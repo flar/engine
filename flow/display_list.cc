@@ -500,13 +500,13 @@ struct DrawImageNineOp final : DLOp {
   static const auto kType = DisplayListOpType::DrawImageNine;
 
   DrawImageNineOp(const sk_sp<SkImage> image,
-                  const SkRect& center,
+                  const SkIRect& center,
                   const SkRect& dst,
                   SkFilterMode filter)
       : image(std::move(image)), center(center), dst(dst), filter(filter) {}
 
   const sk_sp<SkImage> image;
-  const SkRect center;
+  const SkIRect center;
   const SkRect dst;
   const SkFilterMode filter;
 
@@ -1073,7 +1073,7 @@ void DisplayListBuilder::drawImageRect(const sk_sp<SkImage> image,
   push<DrawImageRectOp>(0, std::move(image), src, dst, sampling);
 }
 void DisplayListBuilder::drawImageNine(const sk_sp<SkImage> image,
-                                       const SkRect& center,
+                                       const SkIRect& center,
                                        const SkRect& dst,
                                        SkFilterMode filter) {
   push<DrawImageNineOp>(0, std::move(image), center, dst, filter);

@@ -277,7 +277,7 @@ void DisplayListBoundsCalculator::drawImageRect(
   accumulateRect(dst, NON_GEOM);
 }
 void DisplayListBoundsCalculator::drawImageNine(const sk_sp<SkImage> image,
-                                                const SkRect& center,
+                                                const SkIRect& center,
                                                 const SkRect& dst,
                                                 SkFilterMode filter) {
   accumulateRect(dst, NON_GEOM);

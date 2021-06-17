@@ -268,7 +268,7 @@ class Dispatcher {
                              const SkRect& dst,
                              const SkSamplingOptions& sampling) = 0;
   virtual void drawImageNine(const sk_sp<SkImage> image,
-                             const SkRect& center,
+                             const SkIRect& center,
                              const SkRect& dst,
                              SkFilterMode filter) = 0;
   virtual void drawImageLattice(const sk_sp<SkImage> image,
@@ -376,7 +376,7 @@ class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
                      const SkRect& dst,
                      const SkSamplingOptions& sampling) override;
   void drawImageNine(const sk_sp<SkImage> image,
-                     const SkRect& center,
+                     const SkIRect& center,
                      const SkRect& dst,
                      SkFilterMode filter) override;
   void drawImageLattice(const sk_sp<SkImage> image,

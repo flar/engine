@@ -273,7 +273,7 @@ class DisplayListBoundsCalculator final
                      const SkRect& dst,
                      const SkSamplingOptions& sampling) override;
   void drawImageNine(const sk_sp<SkImage> image,
-                     const SkRect& center,
+                     const SkIRect& center,
                      const SkRect& dst,
                      SkFilterMode filter) override;
   void drawImageLattice(const sk_sp<SkImage> image,

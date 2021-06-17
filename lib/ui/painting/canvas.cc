@@ -85,7 +85,7 @@ fml::RefPtr<Canvas> Canvas::Create(PictureRecorder* recorder,
   fml::RefPtr<Canvas> canvas = fml::MakeRefCounted<Canvas>(
       recorder->BeginRecording(SkRect::MakeLTRB(left, top, right, bottom)));
   recorder->set_canvas(canvas);
-  canvas->builder_ = recorder->builder();
+  canvas->display_list_recorder_ = recorder->display_list_recorder();
   return canvas;
 }
 
@@ -384,8 +384,19 @@ void Canvas::drawImageNine(const CanvasImage* image,
   center.round(&icenter);
   SkRect dst = SkRect::MakeLTRB(dst_left, dst_top, dst_right, dst_bottom);
   auto filter = ImageFilter::FilterModeFromIndex(bitmapSamplingIndex);
-  canvas_->drawImageNine(image->image().get(), icenter, dst, filter,
-                         paint.paint());
+  if (PictureRecorder::UsingDisplayLists) {
+    // SkCanvas turns a simple 2-rect DrawImageNine operation into a
+    // drawImageLattice operation which has arrays to allocate and
+    // pass along. For simplicity, we will bypass the canvas and ask
+    // the recorder to record our paint attributes and record a much
+    // simpler DrawImageNineOp record directly.
+    display_list_recorder_->recordPaintAttributes(
+        paint.paint(), DisplayListCanvasRecorder::DrawType::imageOp);
+    builder()->drawImageNine(image->image(), icenter, dst, filter);
+  } else {
+    canvas_->drawImageNine(image->image().get(), icenter, dst, filter,
+                           paint.paint());
+  }
 }
 
 void Canvas::drawPicture(Picture* picture) {
@@ -485,16 +496,16 @@ void Canvas::drawShadow(const CanvasPath* path,
     // record an operation that it injects into an SkCanvas. To prevent
     // that situation we bypass the canvas interface and inject the
     // shadow parameters directly into the underlying DisplayList.
-    builder_->drawShadow(path->path(), color, elevation, transparentOccluder);
-    return;
+    builder()->drawShadow(path->path(), color, elevation, transparentOccluder);
+  } else {
+    SkScalar dpr = UIDartState::Current()
+                       ->platform_configuration()
+                       ->get_window(0)
+                       ->viewport_metrics()
+                       .device_pixel_ratio;
+    flutter::PhysicalShapeLayer::DrawShadow(
+        canvas_, path->path(), color, elevation, transparentOccluder, dpr);
   }
-  SkScalar dpr = UIDartState::Current()
-                     ->platform_configuration()
-                     ->get_window(0)
-                     ->viewport_metrics()
-                     .device_pixel_ratio;
-  flutter::PhysicalShapeLayer::DrawShadow(canvas_, path->path(), color,
-                                          elevation, transparentOccluder, dpr);
 }
 
 void Canvas::Invalidate() {

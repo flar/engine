@@ -83,7 +83,7 @@ class DisplayListCanvasDispatcher : public virtual Dispatcher,
                      const SkRect& dst,
                      const SkSamplingOptions& sampling) override;
   void drawImageNine(const sk_sp<SkImage> image,
-                     const SkRect& center,
+                     const SkIRect& center,
                      const SkRect& dst,
                      SkFilterMode filter) override;
   void drawImageLattice(const sk_sp<SkImage> image,
@@ -229,6 +229,19 @@ class DisplayListCanvasRecorder
                      const SkMatrix* matrix,
                      const SkPaint* paint) override;
 
+  enum DrawType {
+    // The operation will be an image operation
+    imageOp,
+    // The operation will be a fill or stroke depending on the paint.style
+    drawOp,
+    // The operation will be a fill (ignoring paint.style)
+    fillOp,
+    // The operation will be a stroke (ignoring paint.style)
+    strokeOp,
+  };
+
+  void recordPaintAttributes(const SkPaint* paint, DrawType type);
+
  private:
   sk_sp<DisplayListBuilder> builder_;
 
@@ -263,7 +276,8 @@ class DisplayListCanvasRecorder
       paintMask_ | strokeStyleNeeded_ | maskFilterNeeded_;
   static const int imageMask_ =
       blendNeeded_ | filterQualityNeeded_ | imageFilterNeeded_ | ditherNeeded_;
-  static const int saveLayerMask_ = blendNeeded_;
+
+  static const SkPaint defaultPaint;
 
   bool currentAA_ = false;
   bool currentDither_ = false;
@@ -280,8 +294,6 @@ class DisplayListCanvasRecorder
   sk_sp<SkColorFilter> currentColorFilter_;
   sk_sp<SkImageFilter> currentImageFilter_;
   sk_sp<SkMaskFilter> currentMaskFilter_;
-
-  void recordPaintAttributes(const SkPaint& paint, int flags);
 };
 
 }  // namespace flutter
