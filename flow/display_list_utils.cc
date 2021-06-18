@@ -30,10 +30,10 @@ constexpr float invert_color_matrix[20] = {
 // clang-format on
 
 void SkPaintDispatchHelper::setAA(bool aa) {
-  paint_.setAntiAlias(true);
+  paint_.setAntiAlias(aa);
 }
 void SkPaintDispatchHelper::setDither(bool dither) {
-  paint_.setAntiAlias(false);
+  paint_.setDither(dither);
 }
 void SkPaintDispatchHelper::setInvertColors(bool invert) {
   invert_colors_ = invert;
