@@ -384,7 +384,7 @@ void Canvas::drawImageNine(const CanvasImage* image,
   center.round(&icenter);
   SkRect dst = SkRect::MakeLTRB(dst_left, dst_top, dst_right, dst_bottom);
   auto filter = ImageFilter::FilterModeFromIndex(bitmapSamplingIndex);
-  if (PictureRecorder::UsingDisplayLists) {
+  if (display_list_recorder_) {
     // SkCanvas turns a simple 2-rect DrawImageNine operation into a
     // drawImageLattice operation which has arrays to allocate and
     // pass along. For simplicity, we will bypass the canvas and ask
@@ -411,7 +411,7 @@ void Canvas::drawPicture(Picture* picture) {
   if (picture->picture()) {
     canvas_->drawPicture(picture->picture().get());
   } else if (picture->display_list()) {
-    if (PictureRecorder::UsingDisplayLists) {
+    if (display_list_recorder_) {
       builder()->drawDisplayList(picture->display_list());
     } else {
       picture->display_list()->renderTo(canvas_);
@@ -499,7 +499,7 @@ void Canvas::drawShadow(const CanvasPath* path,
         ToDart("Canvas.drawShader called with non-genuine Path."));
     return;
   }
-  if (PictureRecorder::UsingDisplayLists) {
+  if (display_list_recorder_) {
     // The DrawShadow mechanism results in non-public operations to be
     // performed on the canvas involving an SkDrawShadowRec. Since we
     // cannot include the header that defines that structure, we cannot

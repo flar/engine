@@ -56,10 +56,7 @@ Picture::~Picture() = default;
 Dart_Handle Picture::toImage(uint32_t width,
                              uint32_t height,
                              Dart_Handle raw_image_callback) {
-  if (PictureRecorder::UsingDisplayLists) {
-    if (!display_list_.get()) {
-      return tonic::ToDart("Picture is null");
-    }
+  if (display_list_) {
     return RasterizeToImage(
         [display_list = display_list_.get()](SkCanvas* canvas) {
           display_list->renderTo(canvas);

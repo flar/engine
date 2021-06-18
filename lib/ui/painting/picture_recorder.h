@@ -22,8 +22,6 @@ class PictureRecorder : public RefCountedDartWrappable<PictureRecorder> {
   FML_FRIEND_MAKE_REF_COUNTED(PictureRecorder);
 
  public:
-  static const bool UsingDisplayLists = true;
-
   static fml::RefPtr<PictureRecorder> Create();
 
   ~PictureRecorder() override;

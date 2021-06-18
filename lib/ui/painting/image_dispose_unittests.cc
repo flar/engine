@@ -54,7 +54,7 @@ TEST_F(ImageDisposeTest, ImageReleasedAfterFrame) {
     CanvasImage* image = GetNativePeer<CanvasImage>(native_image_handle);
     Picture* picture = GetNativePeer<Picture>(Dart_GetNativeArgument(args, 1));
     ASSERT_FALSE(image->image()->unique());
-    if (PictureRecorder::UsingDisplayLists) {
+    if (picture->display_list()) {
       ASSERT_FALSE(picture->display_list()->unique());
       current_display_list_ = picture->display_list();
     } else {
@@ -102,11 +102,7 @@ TEST_F(ImageDisposeTest, ImageReleasedAfterFrame) {
 
   message_latch_.Wait();
 
-  if (PictureRecorder::UsingDisplayLists) {
-    ASSERT_TRUE(current_display_list_);
-  } else {
-    ASSERT_TRUE(current_picture_);
-  }
+  ASSERT_TRUE(current_display_list_ || current_picture_);
   ASSERT_TRUE(current_image_);
 
   // Simulate a large notify idle, as the animator would do
@@ -125,7 +121,7 @@ TEST_F(ImageDisposeTest, ImageReleasedAfterFrame) {
   });
   message_latch_.Wait();
 
-  if (PictureRecorder::UsingDisplayLists) {
+  if (current_display_list_) {
     EXPECT_TRUE(current_display_list_->unique());
     current_display_list_.reset();
   } else {
