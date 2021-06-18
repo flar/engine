@@ -975,15 +975,15 @@ void DisplayListBuilder::clipRect(const SkRect& rect,
                                   SkClipOp clip_op) {
   if (isAA) {
     if (clip_op == SkClipOp::kIntersect) {
-      push<ClipRectOp>(0, rect);
-    } else {
-      push<ClipRectDiffOp>(0, rect);
-    }
-  } else {
-    if (clip_op == SkClipOp::kIntersect) {
       push<ClipRectAAOp>(0, rect);
     } else {
       push<ClipRectAADiffOp>(0, rect);
+    }
+  } else {
+    if (clip_op == SkClipOp::kIntersect) {
+      push<ClipRectOp>(0, rect);
+    } else {
+      push<ClipRectDiffOp>(0, rect);
     }
   }
 }
