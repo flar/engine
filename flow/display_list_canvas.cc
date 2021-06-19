@@ -112,7 +112,7 @@ void DisplayListCanvasDispatcher::drawPoints(SkCanvas::PointMode mode,
 }
 void DisplayListCanvasDispatcher::drawVertices(const sk_sp<SkVertices> vertices,
                                                SkBlendMode mode) {
-  canvas_->drawVertices(vertices, paint());
+  canvas_->drawVertices(vertices, mode, paint());
 }
 void DisplayListCanvasDispatcher::drawImage(const sk_sp<SkImage> image,
                                             const SkPoint point,
@@ -124,7 +124,8 @@ void DisplayListCanvasDispatcher::drawImageRect(
     const SkRect& src,
     const SkRect& dst,
     const SkSamplingOptions& sampling) {
-  canvas_->drawImageRect(image, dst, sampling, &paint());
+  canvas_->drawImageRect(image, src, dst, sampling, &paint(),
+                         SkCanvas::kFast_SrcRectConstraint);
 }
 void DisplayListCanvasDispatcher::drawImageNine(const sk_sp<SkImage> image,
                                                 const SkIRect& center,
@@ -308,7 +309,7 @@ void DisplayListCanvasRecorder::onDrawImageRect2(
     const SkPaint* paint,
     SrcRectConstraint constraint) {
   FML_DCHECK(constraint == SrcRectConstraint::kFast_SrcRectConstraint);
-  recordPaintAttributes(paint, imageOp);
+  recordPaintAttributes(paint, imageRectOp);
   builder_->drawImageRect(sk_ref_sp(image), src, dst, sampling);
 }
 void DisplayListCanvasRecorder::onDrawImageLattice2(const SkImage* image,
@@ -371,6 +372,9 @@ void DisplayListCanvasRecorder::recordPaintAttributes(const SkPaint* paint,
       break;
     case imageOp:
       dataNeeded = imageMask_;
+      break;
+    case imageRectOp:
+      dataNeeded = imageRectMask_;
       break;
     default:
       FML_DCHECK(false);

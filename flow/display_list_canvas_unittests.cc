@@ -7,7 +7,10 @@
 
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
+#include "third_party/skia/include/core/SkPath.h"
+#include "third_party/skia/include/core/SkRRect.h"
 #include "third_party/skia/include/core/SkSurface.h"
+#include "third_party/skia/include/core/SkVertices.h"
 #include "third_party/skia/include/effects/SkGradientShader.h"
 #include "third_party/skia/include/effects/SkImageFilters.h"
 
@@ -20,13 +23,23 @@ namespace testing {
 
 constexpr int TestWidth = 200;
 constexpr int TestHeight = 200;
-constexpr int TestRadius = 50;
+constexpr int RenderWidth = 100;
+constexpr int RenderHeight = 100;
+constexpr int RenderLeft = (TestWidth - RenderWidth) / 2;
+constexpr int RenderTop = (TestHeight - RenderHeight) / 2;
+constexpr int RenderRight = RenderLeft + RenderWidth;
+constexpr int RenderBottom = RenderTop + RenderHeight;
+constexpr int RenderCenterX = (RenderLeft + RenderRight) / 2;
+constexpr int RenderCenterY = (RenderTop + RenderBottom) / 2;
+constexpr SkScalar RenderRadius = std::min(RenderWidth, RenderHeight) / 2.0;
+constexpr SkScalar RenderCornerRadius = RenderRadius / 5.0;
+
 constexpr SkPoint TestCenter = SkPoint::Make(TestWidth / 2, TestHeight / 2);
 constexpr SkRect TestBounds = SkRect::MakeWH(TestWidth, TestHeight);
-constexpr SkRect RenderBounds = SkRect::MakeXYWH(TestWidth / 4,
-                                                 TestWidth / 4,
-                                                 TestWidth / 2,
-                                                 TestHeight / 2);
+constexpr SkRect RenderBounds =
+    SkRect::MakeLTRB(RenderLeft, RenderTop, RenderRight, RenderBottom);
+
+static bool skipTheColorFilter = false;
 
 class CanvasCompareTester {
  public:
@@ -43,30 +56,30 @@ class CanvasCompareTester {
                                    DlRenderer& dl_renderer) {
     renderWith([=](SkCanvas*, SkPaint& p) {},  //
                [=](DisplayListBuilder& d) {},  //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Base Test");
 
     renderWith([=](SkCanvas*, SkPaint& p) { p.setAntiAlias(true); },  //
                [=](DisplayListBuilder& b) { b.setAA(true); },         //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "AA == True");
     renderWith([=](SkCanvas*, SkPaint& p) { p.setAntiAlias(false); },  //
                [=](DisplayListBuilder& b) { b.setAA(false); },         //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "AA == False");
 
     // Not testing setInvertColors here because there is no SkPaint version
 
     renderWith([=](SkCanvas*, SkPaint& p) { p.setDither(true); },  //
                [=](DisplayListBuilder& b) { b.setDither(true); },  //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Dither == True");
     renderWith([=](SkCanvas*, SkPaint& p) { p.setDither(false); },  //
                [=](DisplayListBuilder& b) { b.setDither(false); },  //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Dither = False");
 
     renderWith([=](SkCanvas*, SkPaint& p) { p.setColor(SK_ColorBLUE); },  //
                [=](DisplayListBuilder& b) { b.setColor(SK_ColorBLUE); },  //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Color == Blue");
     renderWith([=](SkCanvas*, SkPaint& p) { p.setColor(SK_ColorGREEN); },  //
                [=](DisplayListBuilder& b) { b.setColor(SK_ColorGREEN); },  //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Color == Green");
 
     renderWithStrokes(cv_renderer, dl_renderer);
 
@@ -86,7 +99,7 @@ class CanvasCompareTester {
             b.setBlendMode(SkBlendMode::kSrcIn);
             b.setColor(blendableColor);
           },
-          cv_renderer, dl_renderer, &bg);
+          cv_renderer, dl_renderer, "Blend == SrcIn", &bg);
       renderWith(
           [=](SkCanvas*, SkPaint& p) {
             p.setBlendMode(SkBlendMode::kDstIn);
@@ -96,7 +109,7 @@ class CanvasCompareTester {
             b.setBlendMode(SkBlendMode::kDstIn);
             b.setColor(blendableColor);
           },
-          cv_renderer, dl_renderer, &bg);
+          cv_renderer, dl_renderer, "Blend == DstIn", &bg);
     }
 
     {
@@ -105,12 +118,15 @@ class CanvasCompareTester {
       {
         renderWith([=](SkCanvas*, SkPaint& p) { p.setImageFilter(filter); },
                    [=](DisplayListBuilder& b) { b.setImageFilter(filter); },
-                   cv_renderer, dl_renderer);
+                   cv_renderer, dl_renderer, "ImageFilter == Decal Blur 5");
       }
-      ASSERT_TRUE(filter->unique());
+      ASSERT_TRUE(filter->unique()) << "ImageFilter Cleanup";
     }
 
-    {
+    if (skipTheColorFilter) {
+      // drawVertices + ColorFilter outputs nothing on the CPU renderer
+      FML_LOG(ERROR) << "Skipping the ColorFilter test";
+    } else {
       constexpr float rotate_color_matrix[20] = {
           0, 1, 0, 0, 0,  //
           0, 0, 1, 0, 0,  //
@@ -129,9 +145,9 @@ class CanvasCompareTester {
               b.setColor(SK_ColorYELLOW);
               b.setColorFilter(filter);
             },
-            cv_renderer, dl_renderer, &bg);
+            cv_renderer, dl_renderer, "ColorFilter == RotateRGB", &bg);
       }
-      ASSERT_TRUE(filter->unique());
+      ASSERT_TRUE(filter->unique()) << "ColorFilter Cleanup";
     }
 
     {
@@ -140,17 +156,17 @@ class CanvasCompareTester {
       {
         renderWith([=](SkCanvas*, SkPaint& p) { p.setMaskFilter(filter); },
                    [=](DisplayListBuilder& b) { b.setMaskFilter(filter); },
-                   cv_renderer, dl_renderer);
+                   cv_renderer, dl_renderer, "MaskFilter == Blur 5");
       }
-      ASSERT_TRUE(filter->unique());
+      ASSERT_TRUE(filter->unique()) << "MaskFilter Cleanup";
       {
         renderWith([=](SkCanvas*, SkPaint& p) { p.setMaskFilter(filter); },
                    [=](DisplayListBuilder& b) {
                      b.setMaskBlurFilter(kNormal_SkBlurStyle, 5.0);
                    },
-                   cv_renderer, dl_renderer);
+                   cv_renderer, dl_renderer, "MaskFilter == Blur(Normal, 5.0");
       }
-      ASSERT_TRUE(filter->unique());
+      ASSERT_TRUE(filter->unique()) << "MaskFilter Cleanup";
     }
 
     {
@@ -173,9 +189,9 @@ class CanvasCompareTester {
       {
         renderWith([=](SkCanvas*, SkPaint& p) { p.setShader(shader); },
                    [=](DisplayListBuilder& b) { b.setShader(shader); },
-                   cv_renderer, dl_renderer);
+                   cv_renderer, dl_renderer, "LinearGradient GYB");
       }
-      ASSERT_TRUE(shader->unique());
+      ASSERT_TRUE(shader->unique()) << "Shader Cleanup";
     }
   }
 
@@ -184,11 +200,11 @@ class CanvasCompareTester {
     renderWith(
         [=](SkCanvas*, SkPaint& p) { p.setStyle(SkPaint::kFill_Style); },
         [=](DisplayListBuilder& b) { b.setDrawStyle(SkPaint::kFill_Style); },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Fill");
     renderWith(
         [=](SkCanvas*, SkPaint& p) { p.setStyle(SkPaint::kStroke_Style); },
         [=](DisplayListBuilder& b) { b.setDrawStyle(SkPaint::kStroke_Style); },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke + defaults");
 
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
@@ -199,7 +215,7 @@ class CanvasCompareTester {
           b.setDrawStyle(SkPaint::kFill_Style);
           b.setStrokeWidth(10.0);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Fill + unnecessary StrokeWidth 10");
 
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
@@ -210,7 +226,7 @@ class CanvasCompareTester {
           b.setDrawStyle(SkPaint::kStroke_Style);
           b.setStrokeWidth(10.0);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke Width 10");
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
           p.setStyle(SkPaint::kStroke_Style);
@@ -220,7 +236,7 @@ class CanvasCompareTester {
           b.setDrawStyle(SkPaint::kStroke_Style);
           b.setStrokeWidth(5.0);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke Width 5");
 
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
@@ -233,7 +249,7 @@ class CanvasCompareTester {
           b.setStrokeWidth(5.0);
           b.setCap(SkPaint::kButt_Cap);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke Width 5, Butt Cap");
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
           p.setStyle(SkPaint::kStroke_Style);
@@ -245,7 +261,7 @@ class CanvasCompareTester {
           b.setStrokeWidth(5.0);
           b.setCap(SkPaint::kRound_Cap);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke Width 5, Round Cap");
 
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
@@ -258,7 +274,7 @@ class CanvasCompareTester {
           b.setStrokeWidth(5.0);
           b.setJoin(SkPaint::kBevel_Join);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke Width 5, Bevel Join");
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
           p.setStyle(SkPaint::kStroke_Style);
@@ -270,7 +286,7 @@ class CanvasCompareTester {
           b.setStrokeWidth(5.0);
           b.setJoin(SkPaint::kRound_Join);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke Width 5, Round Join");
 
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
@@ -285,7 +301,7 @@ class CanvasCompareTester {
           b.setMiterLimit(100.0);
           b.setJoin(SkPaint::kMiter_Join);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke Width 5, Miter 100");
 
     renderWith(
         [=](SkCanvas*, SkPaint& p) {
@@ -300,23 +316,23 @@ class CanvasCompareTester {
           b.setMiterLimit(0.0);
           b.setJoin(SkPaint::kMiter_Join);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Stroke Width 5, Miter 0");
   }
 
   static void renderWithTransforms(CvRenderer& cv_renderer,
                                    DlRenderer& dl_renderer) {
     renderWith([=](SkCanvas* c, SkPaint&) { c->translate(5, 10); },  //
                [=](DisplayListBuilder& b) { b.translate(5, 10); },   //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Translate 5, 10");
     renderWith([=](SkCanvas* c, SkPaint&) { c->scale(0.95, 0.95); },  //
                [=](DisplayListBuilder& b) { b.scale(0.95, 0.95); },   //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Scale 95%");
     renderWith([=](SkCanvas* c, SkPaint&) { c->rotate(5); },  //
                [=](DisplayListBuilder& b) { b.rotate(5); },   //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Rotate 5 degrees");
     renderWith([=](SkCanvas* c, SkPaint&) { c->skew(0.05, 0.05); },  //
                [=](DisplayListBuilder& b) { b.skew(0.05, 0.05); },   //
-               cv_renderer, dl_renderer);
+               cv_renderer, dl_renderer, "Skew 5%");
   }
 
   static void renderWithClips(CvRenderer& cv_renderer,
@@ -330,7 +346,7 @@ class CanvasCompareTester {
           b.clipRect(RenderBounds.makeInset(25.5, 25.5),  //
                      false, SkClipOp::kIntersect);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Hard ClipRect inset by 25.5");
     renderWith(
         [=](SkCanvas* c, SkPaint&) {
           c->clipRect(RenderBounds.makeInset(25.5, 25.5),  //
@@ -340,7 +356,7 @@ class CanvasCompareTester {
           b.clipRect(RenderBounds.makeInset(25.5, 25.5),  //
                      true, SkClipOp::kIntersect);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "AA ClipRect inset by 25.5");
     renderWith(
         [=](SkCanvas* c, SkPaint&) {
           c->clipRect(RenderBounds.makeInset(25.5, 25.5),  //
@@ -350,13 +366,14 @@ class CanvasCompareTester {
           b.clipRect(RenderBounds.makeInset(25.5, 25.5),  //
                      false, SkClipOp::kDifference);
         },
-        cv_renderer, dl_renderer);
+        cv_renderer, dl_renderer, "Hard ClipRect Diff, inset by 25.5");
   }
 
   static void renderWith(CvRenderer& cv_setup,
                          DlRenderer& dl_setup,
                          CvRenderer& cv_render,
                          DlRenderer& dl_render,
+                         const std::string info,
                          const SkColor* bg = nullptr) {
     // surface1 is direct rendering via SkCanvas to SkSurface
     sk_sp<SkSurface> ref_surface = makeSurface(bg);
@@ -364,9 +381,9 @@ class CanvasCompareTester {
     cv_setup(ref_surface->getCanvas(), paint1);
     cv_render(ref_surface->getCanvas(), paint1);
     SkPixmap ref_pixels;
-    ASSERT_TRUE(ref_surface->peekPixels(&ref_pixels));
-    ASSERT_EQ(ref_pixels.width(), TestWidth);
-    ASSERT_EQ(ref_pixels.height(), TestHeight);
+    ASSERT_TRUE(ref_surface->peekPixels(&ref_pixels)) << info;
+    ASSERT_EQ(ref_pixels.width(), TestWidth) << info;
+    ASSERT_EQ(ref_pixels.height(), TestHeight) << info;
     SkColor untouched = bg ? *bg : SK_ColorTRANSPARENT;
     int pixels_touched = 0;
     for (int y = 0; y < TestHeight; y++) {
@@ -376,7 +393,7 @@ class CanvasCompareTester {
         }
       }
     }
-    ASSERT_GT(pixels_touched, 0);
+    ASSERT_GT(pixels_touched, 0) << info;
 
     {
       // This sequence plays the provided equivalently constructed
@@ -387,28 +404,32 @@ class CanvasCompareTester {
       dl_setup(builder);
       dl_render(builder);
       builder.build()->renderTo(test_surface->getCanvas());
-      compareToReference(test_surface.get(), &ref_pixels);
+      compareToReference(test_surface.get(), &ref_pixels,
+                         info + " (DL render)");
     }
 
     {
       // This sequence renders SkCanvas calls to a DisplayList and then
       // plays them back on SkCanvas to SkSurface
-      // SkSurface calls => DisplayList => rendering
+      // SkCanvas calls => DisplayList => rendering
       sk_sp<SkSurface> test_surface = makeSurface(bg);
       DisplayListCanvasRecorder dl_recorder(TestBounds);
       SkPaint test_paint;
       cv_setup(&dl_recorder, test_paint);
       cv_render(&dl_recorder, test_paint);
       dl_recorder.builder()->build()->renderTo(test_surface->getCanvas());
-      compareToReference(test_surface.get(), &ref_pixels);
+      compareToReference(test_surface.get(), &ref_pixels,
+                         info + " (Sk->DL render)");
     }
   }
 
-  static void compareToReference(SkSurface* test_surface, SkPixmap* reference) {
+  static void compareToReference(SkSurface* test_surface,
+                                 SkPixmap* reference,
+                                 const std::string info) {
     SkPixmap test_pixels;
-    ASSERT_TRUE(test_surface->peekPixels(&test_pixels));
-    ASSERT_EQ(test_pixels.width(), TestWidth);
-    ASSERT_EQ(test_pixels.height(), TestHeight);
+    ASSERT_TRUE(test_surface->peekPixels(&test_pixels)) << info;
+    ASSERT_EQ(test_pixels.width(), TestWidth) << info;
+    ASSERT_EQ(test_pixels.height(), TestHeight) << info;
 
     int pixels_different = 0;
     for (int y = 0; y < TestHeight; y++) {
@@ -418,7 +439,7 @@ class CanvasCompareTester {
         }
       }
     }
-    ASSERT_EQ(pixels_different, 0);
+    ASSERT_EQ(pixels_different, 0) << info;
   }
 
   static sk_sp<SkSurface> makeSurface(const SkColor* bg) {
@@ -429,7 +450,30 @@ class CanvasCompareTester {
     }
     return surface;
   }
+
+  static const sk_sp<SkImage> testImage;
+  static const sk_sp<SkImage> makeTestImage() {
+    sk_sp<SkSurface> surface =
+        SkSurface::MakeRasterN32Premul(RenderWidth, RenderHeight);
+    SkCanvas* canvas = surface->getCanvas();
+    SkPaint p0, p1;
+    p0.setStyle(SkPaint::kFill_Style);
+    p0.setColor(SK_ColorGREEN);
+    p1.setStyle(SkPaint::kFill_Style);
+    p1.setColor(SK_ColorBLUE);
+    int cbdim = 5;
+    for (int y = 0; y < RenderHeight; y += cbdim) {
+      for (int x = 0; x < RenderWidth; x += cbdim) {
+        SkPaint& cellp = ((x + y) & 1) == 0 ? p0 : p1;
+        canvas->drawRect(SkRect::MakeXYWH(x, y, cbdim, cbdim), cellp);
+      }
+    }
+    return surface->makeImageSnapshot();
+  }
 };
+
+const sk_sp<SkImage> CanvasCompareTester::testImage =
+    CanvasCompareTester::makeTestImage();
 
 TEST(DisplayListCanvas, DrawPaint) {
   CanvasCompareTester::renderAll(
@@ -445,6 +489,21 @@ TEST(DisplayListCanvas, DrawColor) {
   CanvasCompareTester::renderWith(             //
       [=](SkCanvas*, SkPaint& p) {},           //
       [=](DisplayListBuilder& b) {},           //
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawColor(SK_ColorMAGENTA);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawColor(SK_ColorMAGENTA, SkBlendMode::kSrcOver);
+      },
+      "No SkPaint");
+  CanvasCompareTester::renderWithTransforms(   //
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawColor(SK_ColorMAGENTA);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawColor(SK_ColorMAGENTA, SkBlendMode::kSrcOver);
+      });
+  CanvasCompareTester::renderWithClips(        //
       [=](SkCanvas* canvas, SkPaint& paint) {  //
         canvas->drawColor(SK_ColorMAGENTA);
       },
@@ -492,10 +551,229 @@ TEST(DisplayListCanvas, DrawOval) {
 TEST(DisplayListCanvas, DrawCircle) {
   CanvasCompareTester::renderAll(
       [=](SkCanvas* canvas, SkPaint& paint) {  //
-        canvas->drawCircle(TestCenter, TestRadius, paint);
+        canvas->drawCircle(TestCenter, RenderRadius, paint);
       },
       [=](DisplayListBuilder& builder) {  //
-        builder.drawCircle(TestCenter, TestRadius);
+        builder.drawCircle(TestCenter, RenderRadius);
+      });
+}
+
+TEST(DisplayListCanvas, DrawRRect) {
+  SkRRect rrect =
+      SkRRect::MakeRectXY(RenderBounds, RenderCornerRadius, RenderCornerRadius);
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawRRect(rrect, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawRRect(rrect);
+      });
+}
+
+TEST(DisplayListCanvas, DrawDRRect) {
+  SkRRect outer =
+      SkRRect::MakeRectXY(RenderBounds, RenderCornerRadius, RenderCornerRadius);
+  SkRect innerBounds = RenderBounds.makeInset(30.0, 30.0);
+  SkRRect inner =
+      SkRRect::MakeRectXY(innerBounds, RenderCornerRadius, RenderCornerRadius);
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawDRRect(outer, inner, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawDRRect(outer, inner);
+      });
+}
+
+TEST(DisplayListCanvas, DrawPath) {
+  SkPath path;
+  path.moveTo(RenderCenterX, RenderTop);
+  path.lineTo(RenderRight, RenderBottom);
+  path.lineTo(RenderLeft, RenderCenterY);
+  path.lineTo(RenderRight, RenderCenterY);
+  path.lineTo(RenderLeft, RenderBottom);
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawPath(path, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawPath(path);
+      });
+}
+
+TEST(DisplayListCanvas, DrawArc) {
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawArc(RenderBounds, 30, 270, false, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawArc(RenderBounds, 30, 270, false);
+      });
+}
+
+TEST(DisplayListCanvas, DrawArcCenter) {
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawArc(RenderBounds, 30, 270, true, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawArc(RenderBounds, 30, 270, true);
+      });
+}
+
+TEST(DisplayListCanvas, DrawPointsAsPoints) {
+  const SkPoint points[] = {
+      SkPoint::Make(RenderLeft, RenderTop),
+      SkPoint::Make(RenderRight, RenderBottom),
+      SkPoint::Make(RenderRight, RenderTop),
+      SkPoint::Make(RenderLeft, RenderBottom),
+      SkPoint::Make(RenderCenterX, RenderCenterY),
+  };
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawPoints(SkCanvas::kPoints_PointMode, 5, points, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawPoints(SkCanvas::kPoints_PointMode, 5, points);
+      });
+}
+
+TEST(DisplayListCanvas, DrawPointsAsLines) {
+  const SkPoint points[] = {
+      SkPoint::Make(RenderLeft, RenderTop),
+      SkPoint::Make(RenderRight, RenderBottom),
+      SkPoint::Make(RenderRight, RenderTop),
+      SkPoint::Make(RenderLeft, RenderBottom),
+  };
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawPoints(SkCanvas::kLines_PointMode, 4, points, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawPoints(SkCanvas::kLines_PointMode, 4, points);
+      });
+}
+
+TEST(DisplayListCanvas, DrawPointsAsPolygon) {
+  const SkPoint points[] = {
+      SkPoint::Make(RenderLeft, RenderTop),
+      SkPoint::Make(RenderRight, RenderBottom),
+      SkPoint::Make(RenderRight, RenderTop),
+      SkPoint::Make(RenderLeft, RenderBottom),
+  };
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawPoints(SkCanvas::kPolygon_PointMode, 4, points, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawPoints(SkCanvas::kPolygon_PointMode, 4, points);
+      });
+}
+
+TEST(DisplayListCanvas, DrawVerticesWithColors) {
+  skipTheColorFilter = true;
+  const SkPoint pts[3] = {
+      SkPoint::Make(RenderCenterX, RenderTop),
+      SkPoint::Make(RenderLeft, RenderBottom),
+      SkPoint::Make(RenderRight, RenderBottom),
+  };
+  const SkColor colors[3] = {SK_ColorRED, SK_ColorBLUE, SK_ColorGREEN};
+  const sk_sp<SkVertices> vertices = SkVertices::MakeCopy(
+      SkVertices::kTriangles_VertexMode, 3, pts, nullptr, colors);
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawVertices(vertices.get(), SkBlendMode::kSrcOver, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawVertices(vertices, SkBlendMode::kSrcOver);
+      });
+  // Since there are no ASSERT macros in this method, this line will execute
+  skipTheColorFilter = false;
+}
+
+// How to test drawVertices with texture
+
+TEST(DisplayListCanvas, DrawImageNearest) {
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawImage(CanvasCompareTester::testImage, RenderLeft, RenderTop,
+                          DisplayList::NearestSampling, &paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawImage(CanvasCompareTester::testImage,
+                          SkPoint::Make(RenderLeft, RenderTop),
+                          DisplayList::NearestSampling);
+      });
+}
+
+TEST(DisplayListCanvas, DrawImageMipmap) {
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawImage(CanvasCompareTester::testImage, RenderLeft, RenderTop,
+                          DisplayList::MipmapSampling, &paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawImage(CanvasCompareTester::testImage,
+                          SkPoint::Make(RenderLeft, RenderTop),
+                          DisplayList::MipmapSampling);
+      });
+}
+
+TEST(DisplayListCanvas, DrawImageRectNearest) {
+  SkRect src = SkRect::MakeIWH(RenderWidth, RenderHeight).makeInset(5, 5);
+  SkRect dst = RenderBounds.makeInset(15.5, 10.5);
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawImageRect(CanvasCompareTester::testImage, src, dst,
+                              DisplayList::NearestSampling, &paint,
+                              SkCanvas::kFast_SrcRectConstraint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawImageRect(CanvasCompareTester::testImage, src, dst,
+                              DisplayList::NearestSampling);
+      });
+}
+
+TEST(DisplayListCanvas, DrawImageRectMipmap) {
+  SkRect src = SkRect::MakeIWH(RenderWidth, RenderHeight).makeInset(5, 5);
+  SkRect dst = RenderBounds.makeInset(15.5, 10.5);
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawImageRect(CanvasCompareTester::testImage, src, dst,
+                              DisplayList::MipmapSampling, &paint,
+                              SkCanvas::kFast_SrcRectConstraint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawImageRect(CanvasCompareTester::testImage, src, dst,
+                              DisplayList::MipmapSampling);
+      });
+}
+
+TEST(DisplayListCanvas, DrawImageNineNearest) {
+  SkIRect src = SkIRect::MakeWH(RenderWidth, RenderHeight).makeInset(5, 5);
+  SkRect dst = RenderBounds.makeInset(15.5, 10.5);
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawImageNine(CanvasCompareTester::testImage.get(), src, dst,
+                              SkFilterMode::kNearest, &paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawImageNine(CanvasCompareTester::testImage, src, dst,
+                              SkFilterMode::kNearest);
+      });
+}
+
+TEST(DisplayListCanvas, DrawImageNineLinear) {
+  SkIRect src = SkIRect::MakeWH(RenderWidth, RenderHeight).makeInset(5, 5);
+  SkRect dst = RenderBounds.makeInset(15.5, 10.5);
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        canvas->drawImageNine(CanvasCompareTester::testImage.get(), src, dst,
+                              SkFilterMode::kLinear, &paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.drawImageNine(CanvasCompareTester::testImage, src, dst,
+                              SkFilterMode::kLinear);
       });
 }
 

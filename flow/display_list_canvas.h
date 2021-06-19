@@ -232,6 +232,8 @@ class DisplayListCanvasRecorder
   enum DrawType {
     // The operation will be an image operation
     imageOp,
+    // The operation will be an imageRect operation
+    imageRectOp,
     // The operation will be a fill or stroke depending on the paint.style
     drawOp,
     // The operation will be a fill (ignoring paint.style)
@@ -274,8 +276,11 @@ class DisplayListCanvasRecorder
       paintMask_ | paintStyleNeeded_ | maskFilterNeeded_;
   static const int strokeMask_ =
       paintMask_ | strokeStyleNeeded_ | maskFilterNeeded_;
-  static const int imageMask_ =
-      blendNeeded_ | filterQualityNeeded_ | imageFilterNeeded_ | ditherNeeded_;
+  static const int imageMask_ = colorNeeded_ | blendNeeded_ |
+                                invertColorsNeeded_ | colorFilterNeeded_ |
+                                ditherNeeded_ | imageFilterNeeded_ |
+                                filterQualityNeeded_ | maskFilterNeeded_;
+  static const int imageRectMask_ = imageMask_ | aaNeeded_;
 
   static const SkPaint defaultPaint;
 
