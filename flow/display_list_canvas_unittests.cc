@@ -376,24 +376,13 @@ class CanvasCompareTester {
                          const std::string info,
                          const SkColor* bg = nullptr) {
     // surface1 is direct rendering via SkCanvas to SkSurface
+    // DisplayList mechanisms are not involved in this operation
     sk_sp<SkSurface> ref_surface = makeSurface(bg);
     SkPaint paint1;
     cv_setup(ref_surface->getCanvas(), paint1);
     cv_render(ref_surface->getCanvas(), paint1);
     SkPixmap ref_pixels;
-    ASSERT_TRUE(ref_surface->peekPixels(&ref_pixels)) << info;
-    ASSERT_EQ(ref_pixels.width(), TestWidth) << info;
-    ASSERT_EQ(ref_pixels.height(), TestHeight) << info;
-    SkColor untouched = bg ? *bg : SK_ColorTRANSPARENT;
-    int pixels_touched = 0;
-    for (int y = 0; y < TestHeight; y++) {
-      for (int x = 0; x < TestWidth; x++) {
-        if (ref_pixels.getColor(x, y) != untouched) {
-          pixels_touched++;
-        }
-      }
-    }
-    ASSERT_GT(pixels_touched, 0) << info;
+    fetchReference(ref_surface.get(), &ref_pixels, info, bg);
 
     {
       // This sequence plays the provided equivalently constructed
@@ -423,6 +412,28 @@ class CanvasCompareTester {
     }
   }
 
+  static void fetchReference(SkSurface* ref_surface,
+                             SkPixmap* ref_pixels,
+                             const std::string info,
+                             const SkColor* bg) {
+    ASSERT_TRUE(ref_surface->peekPixels(ref_pixels)) << info;
+    ASSERT_EQ(ref_pixels->width(), TestWidth) << info;
+    ASSERT_EQ(ref_pixels->height(), TestHeight) << info;
+    ASSERT_EQ(ref_pixels->info().bytesPerPixel(), 4) << info;
+    SkPMColor untouched = (bg) ? SkPreMultiplyColor(*bg) : 0;
+    int pixels_touched = 0;
+    for (int y = 0; y < TestHeight; y++) {
+      const uint32_t* ref_row = ref_pixels->addr32(0, y);
+      for (int x = 0; x < TestWidth; x++) {
+        if (ref_row[x] != untouched) {
+          // We could count them, but we know the ASSERT will pass
+          return;
+        }
+      }
+    }
+    ASSERT_GT(pixels_touched, 0) << info;
+  }
+
   static void compareToReference(SkSurface* test_surface,
                                  SkPixmap* reference,
                                  const std::string info) {
@@ -430,11 +441,14 @@ class CanvasCompareTester {
     ASSERT_TRUE(test_surface->peekPixels(&test_pixels)) << info;
     ASSERT_EQ(test_pixels.width(), TestWidth) << info;
     ASSERT_EQ(test_pixels.height(), TestHeight) << info;
+    ASSERT_EQ(test_pixels.info().bytesPerPixel(), 4) << info;
 
     int pixels_different = 0;
     for (int y = 0; y < TestHeight; y++) {
+      const uint32_t* ref_row = reference->addr32(0, y);
+      const uint32_t* test_row = test_pixels.addr32(0, y);
       for (int x = 0; x < TestWidth; x++) {
-        if (test_pixels.getColor(x, y) != reference->getColor(x, y)) {
+        if (test_row[x] != ref_row[x]) {
           pixels_different++;
         }
       }
@@ -706,16 +720,16 @@ TEST(DisplayListCanvas, DrawImageNearest) {
       });
 }
 
-TEST(DisplayListCanvas, DrawImageMipmap) {
+TEST(DisplayListCanvas, DrawImageLinear) {
   CanvasCompareTester::renderAll(
       [=](SkCanvas* canvas, SkPaint& paint) {  //
         canvas->drawImage(CanvasCompareTester::testImage, RenderLeft, RenderTop,
-                          DisplayList::MipmapSampling, &paint);
+                          DisplayList::LinearSampling, &paint);
       },
       [=](DisplayListBuilder& builder) {  //
         builder.drawImage(CanvasCompareTester::testImage,
                           SkPoint::Make(RenderLeft, RenderTop),
-                          DisplayList::MipmapSampling);
+                          DisplayList::LinearSampling);
       });
 }
 
@@ -734,18 +748,18 @@ TEST(DisplayListCanvas, DrawImageRectNearest) {
       });
 }
 
-TEST(DisplayListCanvas, DrawImageRectMipmap) {
+TEST(DisplayListCanvas, DrawImageRectLinear) {
   SkRect src = SkRect::MakeIWH(RenderWidth, RenderHeight).makeInset(5, 5);
   SkRect dst = RenderBounds.makeInset(15.5, 10.5);
   CanvasCompareTester::renderAll(
       [=](SkCanvas* canvas, SkPaint& paint) {  //
         canvas->drawImageRect(CanvasCompareTester::testImage, src, dst,
-                              DisplayList::MipmapSampling, &paint,
+                              DisplayList::LinearSampling, &paint,
                               SkCanvas::kFast_SrcRectConstraint);
       },
       [=](DisplayListBuilder& builder) {  //
         builder.drawImageRect(CanvasCompareTester::testImage, src, dst,
-                              DisplayList::MipmapSampling);
+                              DisplayList::LinearSampling);
       });
 }
 
