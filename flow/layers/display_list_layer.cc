@@ -22,8 +22,8 @@ DisplayListLayer::DisplayListLayer(const SkPoint& offset,
 bool DisplayListLayer::IsReplacing(DiffContext* context,
                                    const Layer* layer) const {
   // Only return true for identical display lists; This way
-  // ContainerLayer::DiffChildren can detect when a picture layer got inserted
-  // between other picture layers
+  // ContainerLayer::DiffChildren can detect when a display list layer
+  // got inserted between other display list layers
   auto old_layer = layer->as_display_list_layer();
   return old_layer != nullptr && offset_ == old_layer->offset_ &&
          Compare(context->statistics(), this, old_layer);
@@ -36,7 +36,7 @@ void DisplayListLayer::Diff(DiffContext* context, const Layer* old_layer) {
     FML_DCHECK(old_layer);
     auto prev = old_layer->as_display_list_layer();
     DiffContext::Statistics dummy_statistics;
-    // IsReplacing has already determined that the picture is same
+    // IsReplacing has already determined that the display list is same
     FML_DCHECK(prev->offset_ == offset_ &&
                Compare(dummy_statistics, this, prev));
 #endif
@@ -69,7 +69,7 @@ bool DisplayListLayer::Compare(DiffContext::Statistics& statistics,
 
   statistics.AddDeepComparePicture();
 
-  auto res = dl1->equals(*dl2.get());
+  auto res = dl1->equals(*dl2);
   if (res) {
     statistics.AddDifferentInstanceButEqualPicture();
   } else {
@@ -88,9 +88,21 @@ void DisplayListLayer::Preroll(PrerollContext* context,
   CheckForChildLayerBelow(context);
 #endif
 
-  // TODO(flar): implement DisplayList raster caching
+  DisplayList* disp_list = display_list();
 
-  SkRect bounds = display_list_->bounds().makeOffset(offset_.x(), offset_.y());
+  if (auto* cache = context->raster_cache) {
+    TRACE_EVENT0("flutter", "DisplayListLayer::RasterCache (Preroll)");
+
+    SkMatrix ctm = matrix;
+    ctm.preTranslate(offset_.x(), offset_.y());
+#ifndef SUPPORT_FRACTIONAL_TRANSLATION
+    ctm = RasterCache::GetIntegralTransCTM(ctm);
+#endif
+    cache->Prepare(context->gr_context, disp_list, ctm,
+                   context->dst_color_space, is_complex_, will_change_);
+  }
+
+  SkRect bounds = disp_list->bounds().makeOffset(offset_.x(), offset_.y());
   set_paint_bounds(bounds);
 }
 
@@ -106,9 +118,13 @@ void DisplayListLayer::Paint(PaintContext& context) const {
       context.leaf_nodes_canvas->getTotalMatrix()));
 #endif
 
-  // TODO(flar): implement DisplayList raster caching
+  if (context.raster_cache &&
+      context.raster_cache->Draw(*display_list(), *context.leaf_nodes_canvas)) {
+    TRACE_EVENT_INSTANT0("flutter", "raster cache hit");
+    return;
+  }
 
-  display_list_->renderTo(context.leaf_nodes_canvas);
+  display_list()->renderTo(context.leaf_nodes_canvas);
 }
 
 }  // namespace flutter

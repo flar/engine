@@ -1689,6 +1689,9 @@ bool Shell::OnServiceProtocolEstimateRasterCacheMemory(
   response->AddMember<uint64_t>("pictureBytes",
                                 raster_cache.EstimatePictureCacheByteSize(),
                                 response->GetAllocator());
+  response->AddMember<uint64_t>("displayListBytes",
+                                raster_cache.EstimateDisplayListCacheByteSize(),
+                                response->GetAllocator());
   return true;
 }
 

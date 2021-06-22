@@ -144,7 +144,12 @@ class DisplayList : public SkRefCnt {
   static const SkSamplingOptions MipmapSampling;
   static const SkSamplingOptions CubicSampling;
 
-  DisplayList() : ptr_(nullptr), used_(0), opCount_(0), bounds_({0, 0, 0, 0}) {}
+  DisplayList()
+      : ptr_(nullptr),
+        used_(0),
+        opCount_(0),
+        uniqueID_(0),
+        bounds_({0, 0, 0, 0}) {}
 
   ~DisplayList();
 
@@ -154,6 +159,7 @@ class DisplayList : public SkRefCnt {
 
   size_t bytes() const { return used_; }
   int opCount() const { return opCount_; }
+  uint32_t uniqueID() const { return uniqueID_; }
 
   const SkRect& bounds() {
     if (bounds_.width() < 0.0) {
@@ -167,13 +173,13 @@ class DisplayList : public SkRefCnt {
   bool equals(const DisplayList& other) const;
 
  private:
-  DisplayList(uint8_t* ptr, size_t used, int opCount)
-      : ptr_(ptr), used_(used), opCount_(opCount), bounds_({0, 0, -1, -1}) {}
+  DisplayList(uint8_t* ptr, size_t used, int opCount);
 
   uint8_t* ptr_;
   size_t used_;
   int opCount_;
 
+  uint32_t uniqueID_;
   SkRect bounds_;
 
   void computeBounds();

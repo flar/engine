@@ -867,6 +867,14 @@ bool DisplayList::equals(const DisplayList& other) const {
   return CompareOps(ptr_, ptr_ + used_, other.ptr_, other.ptr_ + other.used_);
 }
 
+DisplayList::DisplayList(uint8_t* ptr, size_t used, int opCount)
+    : ptr_(ptr), used_(used), opCount_(opCount), bounds_({0, 0, -1, -1}) {
+  static std::atomic<uint32_t> nextID{1};
+  do {
+    uniqueID_ = nextID.fetch_add(+1, std::memory_order_relaxed);
+  } while (uniqueID_ == 0);
+}
+
 DisplayList::~DisplayList() {
   DisposeOps(ptr_, ptr_ + used_);
 }
