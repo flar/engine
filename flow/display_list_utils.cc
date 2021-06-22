@@ -39,10 +39,10 @@ void SkPaintDispatchHelper::setInvertColors(bool invert) {
   invert_colors_ = invert;
   paint_.setColorFilter(makeColorFilter());
 }
-void SkPaintDispatchHelper::setCap(SkPaint::Cap cap) {
+void SkPaintDispatchHelper::setCaps(SkPaint::Cap cap) {
   paint_.setStrokeCap(cap);
 }
-void SkPaintDispatchHelper::setJoin(SkPaint::Join join) {
+void SkPaintDispatchHelper::setJoins(SkPaint::Join join) {
   paint_.setStrokeJoin(join);
 }
 void SkPaintDispatchHelper::setDrawStyle(SkPaint::Style style) {
@@ -140,11 +140,19 @@ void ClipBoundsDispatchHelper::clipRect(const SkRect& rect,
     intersect(rect);
   }
 }
-void ClipBoundsDispatchHelper::clipRRect(const SkRRect& rrect, bool isAA) {
-  intersect(rrect.getBounds());
+void ClipBoundsDispatchHelper::clipRRect(const SkRRect& rrect,
+                                         bool isAA,
+                                         SkClipOp clip_op) {
+  if (clip_op == SkClipOp::kIntersect) {
+    intersect(rrect.getBounds());
+  }
 }
-void ClipBoundsDispatchHelper::clipPath(const SkPath& path, bool isAA) {
-  intersect(path.getBounds());
+void ClipBoundsDispatchHelper::clipPath(const SkPath& path,
+                                        bool isAA,
+                                        SkClipOp clip_op) {
+  if (clip_op == SkClipOp::kIntersect) {
+    intersect(path.getBounds());
+  }
 }
 void ClipBoundsDispatchHelper::intersect(const SkRect& rect) {
   SkRect devClipBounds = matrix().mapRect(rect);
@@ -160,7 +168,7 @@ void ClipBoundsDispatchHelper::restore() {
   saved_.pop_back();
 }
 
-void DisplayListBoundsCalculator::setJoin(SkPaint::Join join) {
+void DisplayListBoundsCalculator::setJoins(SkPaint::Join join) {
   isMiter_ = (join == SkPaint::Join::kMiter_Join);
 }
 void DisplayListBoundsCalculator::setDrawStyle(SkPaint::Style style) {
@@ -248,7 +256,7 @@ void DisplayListBoundsCalculator::drawArc(const SkRect& bounds,
   accumulateRect(bounds);
 }
 void DisplayListBoundsCalculator::drawPoints(SkCanvas::PointMode mode,
-                                             size_t count,
+                                             uint32_t count,
                                              const SkPoint pts[]) {
   if (count > 0) {
     BoundsAccumulator ptBounds;

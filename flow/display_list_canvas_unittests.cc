@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include "flutter/flow/display_list_canvas.h"
-// #include "flutter/lib/ui/painting/gradient.h"
 
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
@@ -247,7 +246,7 @@ class CanvasCompareTester {
         [=](DisplayListBuilder& b) {
           b.setDrawStyle(SkPaint::kStroke_Style);
           b.setStrokeWidth(5.0);
-          b.setCap(SkPaint::kButt_Cap);
+          b.setCaps(SkPaint::kButt_Cap);
         },
         cv_renderer, dl_renderer, "Stroke Width 5, Butt Cap");
     renderWith(
@@ -259,7 +258,7 @@ class CanvasCompareTester {
         [=](DisplayListBuilder& b) {
           b.setDrawStyle(SkPaint::kStroke_Style);
           b.setStrokeWidth(5.0);
-          b.setCap(SkPaint::kRound_Cap);
+          b.setCaps(SkPaint::kRound_Cap);
         },
         cv_renderer, dl_renderer, "Stroke Width 5, Round Cap");
 
@@ -272,7 +271,7 @@ class CanvasCompareTester {
         [=](DisplayListBuilder& b) {
           b.setDrawStyle(SkPaint::kStroke_Style);
           b.setStrokeWidth(5.0);
-          b.setJoin(SkPaint::kBevel_Join);
+          b.setJoins(SkPaint::kBevel_Join);
         },
         cv_renderer, dl_renderer, "Stroke Width 5, Bevel Join");
     renderWith(
@@ -284,7 +283,7 @@ class CanvasCompareTester {
         [=](DisplayListBuilder& b) {
           b.setDrawStyle(SkPaint::kStroke_Style);
           b.setStrokeWidth(5.0);
-          b.setJoin(SkPaint::kRound_Join);
+          b.setJoins(SkPaint::kRound_Join);
         },
         cv_renderer, dl_renderer, "Stroke Width 5, Round Join");
 
@@ -299,7 +298,7 @@ class CanvasCompareTester {
           b.setDrawStyle(SkPaint::kStroke_Style);
           b.setStrokeWidth(5.0);
           b.setMiterLimit(100.0);
-          b.setJoin(SkPaint::kMiter_Join);
+          b.setJoins(SkPaint::kMiter_Join);
         },
         cv_renderer, dl_renderer, "Stroke Width 5, Miter 100");
 
@@ -314,7 +313,7 @@ class CanvasCompareTester {
           b.setDrawStyle(SkPaint::kStroke_Style);
           b.setStrokeWidth(5.0);
           b.setMiterLimit(0.0);
-          b.setJoin(SkPaint::kMiter_Join);
+          b.setJoins(SkPaint::kMiter_Join);
         },
         cv_renderer, dl_renderer, "Stroke Width 5, Miter 0");
   }
@@ -475,6 +474,8 @@ class CanvasCompareTester {
     p0.setColor(SK_ColorGREEN);
     p1.setStyle(SkPaint::kFill_Style);
     p1.setColor(SK_ColorBLUE);
+    // Some pixels need some transparency for DstIn testing
+    p1.setAlpha(128);
     int cbdim = 5;
     for (int y = 0; y < RenderHeight; y += cbdim) {
       for (int x = 0; x < RenderWidth; x += cbdim) {
@@ -701,11 +702,41 @@ TEST(DisplayListCanvas, DrawVerticesWithColors) {
       [=](DisplayListBuilder& builder) {  //
         builder.drawVertices(vertices, SkBlendMode::kSrcOver);
       });
-  // Since there are no ASSERT macros in this method, this line will execute
+  // Since there are no ASSERT macros above here, this line will execute
   skipTheColorFilter = false;
+  ASSERT_TRUE(vertices->unique());
 }
 
-// How to test drawVertices with texture
+TEST(DisplayListCanvas, DrawVerticesWithImage) {
+  skipTheColorFilter = true;
+  const SkPoint pts[3] = {
+      SkPoint::Make(RenderCenterX, RenderTop),
+      SkPoint::Make(RenderLeft, RenderBottom),
+      SkPoint::Make(RenderRight, RenderBottom),
+  };
+  const SkPoint tex[3] = {
+      SkPoint::Make(RenderWidth / 2.0, 0),
+      SkPoint::Make(0, RenderHeight),
+      SkPoint::Make(RenderWidth, RenderHeight),
+  };
+  const sk_sp<SkVertices> vertices = SkVertices::MakeCopy(
+      SkVertices::kTriangles_VertexMode, 3, pts, tex, nullptr);
+  const sk_sp<SkShader> shader = CanvasCompareTester::testImage->makeShader(
+      SkTileMode::kRepeat, SkTileMode::kRepeat, SkSamplingOptions());
+  CanvasCompareTester::renderAll(
+      [=](SkCanvas* canvas, SkPaint& paint) {  //
+        paint.setShader(shader);
+        canvas->drawVertices(vertices.get(), SkBlendMode::kSrcOver, paint);
+      },
+      [=](DisplayListBuilder& builder) {  //
+        builder.setShader(shader);
+        builder.drawVertices(vertices, SkBlendMode::kSrcOver);
+      });
+  // Since there are no ASSERT macros above here, this line will execute
+  skipTheColorFilter = false;
+  ASSERT_TRUE(vertices->unique());
+  ASSERT_TRUE(shader->unique());
+}
 
 TEST(DisplayListCanvas, DrawImageNearest) {
   CanvasCompareTester::renderAll(

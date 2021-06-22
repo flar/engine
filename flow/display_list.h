@@ -49,31 +49,20 @@ namespace flutter {
 
 #define FOR_EACH_DISPLAY_LIST_OP(V) \
   V(SetAA)                          \
-  V(ClearAA)                        \
   V(SetDither)                      \
-  V(ClearDither)                    \
   V(SetInvertColors)                \
-  V(ClearInvertColors)              \
                                     \
-  V(SetCapsButt)                    \
-  V(SetCapsRound)                   \
-  V(SetCapsSquare)                  \
-  V(SetJoinsBevel)                  \
-  V(SetJoinsMiter)                  \
-  V(SetJoinsRound)                  \
+  V(SetCaps)                        \
+  V(SetJoins)                       \
                                     \
-  V(SetFillStyle)                   \
-  V(SetStrokeStyle)                 \
+  V(SetDrawStyle)                   \
   V(SetStrokeWidth)                 \
   V(SetMiterLimit)                  \
                                     \
   V(SetColor)                       \
   V(SetBlendMode)                   \
                                     \
-  V(SetFilterQualityNearest)        \
-  V(SetFilterQualityLinear)         \
-  V(SetFilterQualityMipmap)         \
-  V(SetFilterQualityCubic)          \
+  V(SetFilterQuality)               \
                                     \
   V(SetShader)                      \
   V(ClearShader)                    \
@@ -102,13 +91,8 @@ namespace flutter {
   V(Transform3x3)                   \
                                     \
   V(ClipRect)                       \
-  V(ClipRectAA)                     \
-  V(ClipRectDiff)                   \
-  V(ClipRectAADiff)                 \
   V(ClipRRect)                      \
-  V(ClipRRectAA)                    \
   V(ClipPath)                       \
-  V(ClipPathAA)                     \
                                     \
   V(DrawPaint)                      \
   V(DrawColor)                      \
@@ -120,7 +104,6 @@ namespace flutter {
   V(DrawRRect)                      \
   V(DrawDRRect)                     \
   V(DrawArc)                        \
-  V(DrawArcCenter)                  \
   V(DrawPath)                       \
                                     \
   V(DrawPoints)                     \
@@ -142,8 +125,7 @@ namespace flutter {
   V(DrawTextBlob)                   \
   /* V(DrawShadowRec) */            \
                                     \
-  V(DrawShadow)                     \
-  V(DrawShadowOccluded)
+  V(DrawShadow)
 
 #define DL_OP_TO_ENUM_VALUE(name) name,
 enum DisplayListOpType { FOR_EACH_DISPLAY_LIST_OP(DL_OP_TO_ENUM_VALUE) };
@@ -162,6 +144,8 @@ class DisplayList : public SkRefCnt {
   static const SkSamplingOptions MipmapSampling;
   static const SkSamplingOptions CubicSampling;
 
+  DisplayList() : ptr_(nullptr), used_(0), opCount_(0), bounds_({0, 0, 0, 0}) {}
+
   ~DisplayList();
 
   void dispatch(Dispatcher& ctx) const { dispatch(ctx, ptr_, ptr_ + used_); }
@@ -169,6 +153,7 @@ class DisplayList : public SkRefCnt {
   void renderTo(SkCanvas* canvas) const;
 
   size_t bytes() const { return used_; }
+  int opCount() const { return opCount_; }
 
   const SkRect& bounds() {
     if (bounds_.width() < 0.0) {
@@ -179,12 +164,16 @@ class DisplayList : public SkRefCnt {
     return bounds_;
   }
 
+  bool equals(const DisplayList& other) const;
+
  private:
-  DisplayList(uint8_t* ptr, size_t used)
-      : ptr_(ptr), used_(used), bounds_({0, 0, -1, -1}) {}
+  DisplayList(uint8_t* ptr, size_t used, int opCount)
+      : ptr_(ptr), used_(used), opCount_(opCount), bounds_({0, 0, -1, -1}) {}
 
   uint8_t* ptr_;
   size_t used_;
+  int opCount_;
+
   SkRect bounds_;
 
   void computeBounds();
@@ -199,11 +188,14 @@ class DisplayList : public SkRefCnt {
 // be invoked through the DisplayList::dispatch() method.
 class Dispatcher {
  public:
+  // MaxDrawPointsCount * sizeof(SkPoint) must be less than 1 << 32
+  static constexpr int MaxDrawPointsCount = ((1 << 29) - 1);
+
   virtual void setAA(bool aa) = 0;
   virtual void setDither(bool dither) = 0;
   virtual void setInvertColors(bool invert) = 0;
-  virtual void setCap(SkPaint::Cap cap) = 0;
-  virtual void setJoin(SkPaint::Join join) = 0;
+  virtual void setCaps(SkPaint::Cap cap) = 0;
+  virtual void setJoins(SkPaint::Join join) = 0;
   virtual void setDrawStyle(SkPaint::Style style) = 0;
   virtual void setStrokeWidth(SkScalar width) = 0;
   virtual void setMiterLimit(SkScalar limit) = 0;
@@ -241,8 +233,8 @@ class Dispatcher {
                             SkScalar pt) = 0;
 
   virtual void clipRect(const SkRect& rect, bool isAA, SkClipOp clip_op) = 0;
-  virtual void clipRRect(const SkRRect& rrect, bool isAA) = 0;
-  virtual void clipPath(const SkPath& path, bool isAA) = 0;
+  virtual void clipRRect(const SkRRect& rrect, bool isAA, SkClipOp clip_op) = 0;
+  virtual void clipPath(const SkPath& path, bool isAA, SkClipOp clip_op) = 0;
 
   virtual void drawPaint() = 0;
   virtual void drawColor(SkColor color, SkBlendMode mode) = 0;
@@ -258,7 +250,7 @@ class Dispatcher {
                        SkScalar sweep,
                        bool useCenter) = 0;
   virtual void drawPoints(SkCanvas::PointMode mode,
-                          size_t count,
+                          uint32_t count,
                           const SkPoint pts[]) = 0;
   virtual void drawVertices(const sk_sp<SkVertices> vertices,
                             SkBlendMode mode) = 0;
@@ -310,8 +302,8 @@ class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
   void setAA(bool aa) override;
   void setDither(bool dither) override;
   void setInvertColors(bool invert) override;
-  void setCap(SkPaint::Cap cap) override;
-  void setJoin(SkPaint::Join join) override;
+  void setCaps(SkPaint::Cap cap) override;
+  void setJoins(SkPaint::Join join) override;
   void setDrawStyle(SkPaint::Style style) override;
   void setStrokeWidth(SkScalar width) override;
   void setMiterLimit(SkScalar limit) override;
@@ -349,8 +341,8 @@ class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
                     SkScalar pt) override;
 
   void clipRect(const SkRect& rect, bool isAA, SkClipOp clip_op) override;
-  void clipRRect(const SkRRect& rrect, bool isAA) override;
-  void clipPath(const SkPath& path, bool isAA) override;
+  void clipRRect(const SkRRect& rrect, bool isAA, SkClipOp clip_op) override;
+  void clipPath(const SkPath& path, bool isAA, SkClipOp clip_op) override;
 
   void drawPaint() override;
   void drawColor(SkColor color, SkBlendMode mode) override;
@@ -366,7 +358,7 @@ class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
                SkScalar sweep,
                bool useCenter) override;
   void drawPoints(SkCanvas::PointMode mode,
-                  size_t count,
+                  uint32_t count,
                   const SkPoint pts[]) override;
   void drawVertices(const sk_sp<SkVertices> vertices,
                     SkBlendMode mode) override;
@@ -410,6 +402,7 @@ class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
   SkAutoTMalloc<uint8_t> storage_;
   size_t used_ = 0;
   size_t allocated_ = 0;
+  int opCount_ = 0;
   int saveLevel_ = 0;
 
   template <typename T, typename... Args>

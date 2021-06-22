@@ -54,8 +54,8 @@ class DisplayListCanvasDispatcher : public virtual Dispatcher,
                     SkScalar pt) override;
 
   void clipRect(const SkRect& rect, bool isAA, SkClipOp clip_op) override;
-  void clipRRect(const SkRRect& rrect, bool isAA) override;
-  void clipPath(const SkPath& path, bool isAA) override;
+  void clipRRect(const SkRRect& rrect, bool isAA, SkClipOp clip_op) override;
+  void clipPath(const SkPath& path, bool isAA, SkClipOp clip_op) override;
 
   void drawPaint() override;
   void drawColor(SkColor color, SkBlendMode mode) override;
@@ -71,7 +71,7 @@ class DisplayListCanvasDispatcher : public virtual Dispatcher,
                SkScalar sweep,
                bool useCenter) override;
   void drawPoints(SkCanvas::PointMode mode,
-                  size_t count,
+                  uint32_t count,
                   const SkPoint pts[]) override;
   void drawVertices(const sk_sp<SkVertices> vertices,
                     SkBlendMode mode) override;

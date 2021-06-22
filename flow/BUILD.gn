@@ -150,6 +150,7 @@ if (enable_unittests) {
 
     sources = [
       "display_list_canvas_unittests.cc",
+      "display_list_unittests.cc",
       "embedded_view_params_unittests.cc",
       "flow_run_all_unittests.cc",
       "flow_test_utils.cc",
@@ -163,6 +164,7 @@ if (enable_unittests) {
       "layers/clip_rrect_layer_unittests.cc",
       "layers/color_filter_layer_unittests.cc",
       "layers/container_layer_unittests.cc",
+      "layers/display_list_layer_unittests.cc",
       "layers/image_filter_layer_unittests.cc",
       "layers/layer_tree_unittests.cc",
       "layers/opacity_layer_unittests.cc",

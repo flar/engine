@@ -17,9 +17,17 @@ class DisplayListLayer : public Layer {
                    bool is_complex,
                    bool will_change);
 
+  DisplayList* display_list() const { return display_list_.get(); }
+
 #ifdef FLUTTER_ENABLE_DIFF_CONTEXT
 
+  bool IsReplacing(DiffContext* context, const Layer* layer) const override;
+
   void Diff(DiffContext* context, const Layer* old_layer) override;
+
+  const DisplayListLayer* as_display_list_layer() const override {
+    return this;
+  }
 
 #endif  // FLUTTER_ENABLE_DIFF_CONTEXT
 
@@ -32,6 +40,16 @@ class DisplayListLayer : public Layer {
   sk_sp<DisplayList> display_list_;
   bool is_complex_ = false;
   bool will_change_ = false;
+
+#ifdef FLUTTER_ENABLE_DIFF_CONTEXT
+
+  sk_sp<SkData> SerializedPicture() const;
+  mutable sk_sp<SkData> cached_serialized_picture_;
+  static bool Compare(DiffContext::Statistics& statistics,
+                      const DisplayListLayer* l1,
+                      const DisplayListLayer* l2);
+
+#endif  // FLUTTER_ENABLE_DIFF_CONTEXT
 
   FML_DISALLOW_COPY_AND_ASSIGN(DisplayListLayer);
 };

@@ -62,10 +62,14 @@ void DisplayListCanvasDispatcher::clipRect(const SkRect& rect,
                                            SkClipOp clip_op) {
   canvas_->clipRect(rect, clip_op, isAA);
 }
-void DisplayListCanvasDispatcher::clipRRect(const SkRRect& rrect, bool isAA) {
+void DisplayListCanvasDispatcher::clipRRect(const SkRRect& rrect,
+                                            bool isAA,
+                                            SkClipOp clip_op) {
   canvas_->clipRRect(rrect, isAA);
 }
-void DisplayListCanvasDispatcher::clipPath(const SkPath& path, bool isAA) {
+void DisplayListCanvasDispatcher::clipPath(const SkPath& path,
+                                           bool isAA,
+                                           SkClipOp clip_op) {
   canvas_->clipPath(path, isAA);
 }
 
@@ -106,7 +110,7 @@ void DisplayListCanvasDispatcher::drawArc(const SkRect& bounds,
   canvas_->drawArc(bounds, start, sweep, useCenter, paint());
 }
 void DisplayListCanvasDispatcher::drawPoints(SkCanvas::PointMode mode,
-                                             size_t count,
+                                             uint32_t count,
                                              const SkPoint pts[]) {
   canvas_->drawPoints(mode, count, pts, paint());
 }
@@ -207,21 +211,22 @@ void DisplayListCanvasRecorder::didScale(SkScalar sx, SkScalar sy) {
 }
 
 void DisplayListCanvasRecorder::onClipRect(const SkRect& rect,
-                                           SkClipOp op,
+                                           SkClipOp clip_op,
                                            ClipEdgeStyle edgeStyle) {
-  builder_->clipRect(rect, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle, op);
+  builder_->clipRect(rect, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle,
+                     clip_op);
 }
 void DisplayListCanvasRecorder::onClipRRect(const SkRRect& rrect,
-                                            SkClipOp op,
+                                            SkClipOp clip_op,
                                             ClipEdgeStyle edgeStyle) {
-  FML_DCHECK(op == SkClipOp::kIntersect);
-  builder_->clipRRect(rrect, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle);
+  builder_->clipRRect(rrect, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle,
+                      clip_op);
 }
 void DisplayListCanvasRecorder::onClipPath(const SkPath& path,
-                                           SkClipOp op,
+                                           SkClipOp clip_op,
                                            ClipEdgeStyle edgeStyle) {
-  FML_DCHECK(op == SkClipOp::kIntersect);
-  builder_->clipPath(path, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle);
+  builder_->clipPath(path, edgeStyle == ClipEdgeStyle::kSoft_ClipEdgeStyle,
+                     clip_op);
 }
 
 void DisplayListCanvasRecorder::willSave() {
@@ -283,7 +288,9 @@ void DisplayListCanvasRecorder::onDrawPoints(SkCanvas::PointMode mode,
   if (mode == SkCanvas::PointMode::kLines_PointMode && count == 2) {
     builder_->drawLine(pts[0], pts[1]);
   } else {
-    builder_->drawPoints(mode, count, pts);
+    uint32_t count32 = static_cast<uint32_t>(count);
+    FML_DCHECK(count32 == count);
+    builder_->drawPoints(mode, count32, pts);
   }
 }
 void DisplayListCanvasRecorder::onDrawVerticesObject(const SkVertices* vertices,
@@ -419,10 +426,10 @@ void DisplayListCanvasRecorder::recordPaintAttributes(const SkPaint* paint,
       builder_->setStrokeWidth(currentStrokeWidth_ = paint->getStrokeWidth());
     }
     if (currentStrokeCap_ != paint->getStrokeCap()) {
-      builder_->setCap(currentStrokeCap_ = paint->getStrokeCap());
+      builder_->setCaps(currentStrokeCap_ = paint->getStrokeCap());
     }
     if (currentStrokeJoin_ != paint->getStrokeJoin()) {
-      builder_->setJoin(currentStrokeJoin_ = paint->getStrokeJoin());
+      builder_->setJoins(currentStrokeJoin_ = paint->getStrokeJoin());
     }
     if (currentMiterLimit_ != paint->getStrokeMiter()) {
       builder_->setMiterLimit(currentMiterLimit_ = paint->getStrokeMiter());

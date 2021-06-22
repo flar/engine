@@ -19,19 +19,63 @@ DisplayListLayer::DisplayListLayer(const SkPoint& offset,
 
 #ifdef FLUTTER_ENABLE_DIFF_CONTEXT
 
-// TODO(flar) Implement display list comparisons and ::IsReplacing method
+bool DisplayListLayer::IsReplacing(DiffContext* context,
+                                   const Layer* layer) const {
+  // Only return true for identical display lists; This way
+  // ContainerLayer::DiffChildren can detect when a picture layer got inserted
+  // between other picture layers
+  auto old_layer = layer->as_display_list_layer();
+  return old_layer != nullptr && offset_ == old_layer->offset_ &&
+         Compare(context->statistics(), this, old_layer);
+}
+
 void DisplayListLayer::Diff(DiffContext* context, const Layer* old_layer) {
   DiffContext::AutoSubtreeRestore subtree(context);
-  auto* prev = static_cast<const DisplayListLayer*>(old_layer);
   if (!context->IsSubtreeDirty()) {
-    FML_DCHECK(prev);
-    if (offset_ != prev->offset_) {
-      context->MarkSubtreeDirty(context->GetOldLayerPaintRegion(old_layer));
-    }
+#ifndef NDEBUG
+    FML_DCHECK(old_layer);
+    auto prev = old_layer->as_display_list_layer();
+    DiffContext::Statistics dummy_statistics;
+    // IsReplacing has already determined that the picture is same
+    FML_DCHECK(prev->offset_ == offset_ &&
+               Compare(dummy_statistics, this, prev));
+#endif
   }
   context->PushTransform(SkMatrix::Translate(offset_.x(), offset_.y()));
   context->AddLayerBounds(display_list_->bounds());
   context->SetLayerPaintRegion(this, context->CurrentSubtreeRegion());
+}
+
+bool DisplayListLayer::Compare(DiffContext::Statistics& statistics,
+                               const DisplayListLayer* l1,
+                               const DisplayListLayer* l2) {
+  const auto& dl1 = l1->display_list_;
+  const auto& dl2 = l2->display_list_;
+  if (dl1.get() == dl2.get()) {
+    statistics.AddSameInstancePicture();
+    return true;
+  }
+  auto op_cnt_1 = dl1->opCount();
+  auto op_cnt_2 = dl2->opCount();
+  if (op_cnt_1 != op_cnt_2 || dl1->bounds() != dl2->bounds()) {
+    statistics.AddNewPicture();
+    return false;
+  }
+
+  if (op_cnt_1 > 10) {
+    statistics.AddPictureTooComplexToCompare();
+    return false;
+  }
+
+  statistics.AddDeepComparePicture();
+
+  auto res = dl1->equals(*dl2.get());
+  if (res) {
+    statistics.AddDifferentInstanceButEqualPicture();
+  } else {
+    statistics.AddNewPicture();
+  }
+  return res;
 }
 
 #endif  // FLUTTER_ENABLE_DIFF_CONTEXT
@@ -46,13 +90,13 @@ void DisplayListLayer::Preroll(PrerollContext* context,
 
   // TODO(flar): implement DisplayList raster caching
 
-  SkRect bounds = display_list_->bounds();
-  bounds.offset(offset_.x(), offset_.y());
+  SkRect bounds = display_list_->bounds().makeOffset(offset_.x(), offset_.y());
   set_paint_bounds(bounds);
 }
 
 void DisplayListLayer::Paint(PaintContext& context) const {
   TRACE_EVENT0("flutter", "DisplayListLayer::Paint");
+  FML_DCHECK(display_list_.get());
   FML_DCHECK(needs_painting(context));
 
   SkAutoCanvasRestore save(context.leaf_nodes_canvas, true);
@@ -65,11 +109,6 @@ void DisplayListLayer::Paint(PaintContext& context) const {
   // TODO(flar): implement DisplayList raster caching
 
   display_list_->renderTo(context.leaf_nodes_canvas);
-
-  SkPaint paint;
-  paint.setColor(is_complex_
-                     ? (will_change_ ? SkColors::kRed : SkColors::kYellow)
-                     : (will_change_ ? SkColors::kBlue : SkColors::kGreen));
 }
 
 }  // namespace flutter

@@ -42,8 +42,8 @@ class IngoreAttributeDispatchHelper : public virtual Dispatcher {
   void setAA(bool aa) override {}
   void setDither(bool dither) override {}
   void setInvertColors(bool invert) override {}
-  void setCap(SkPaint::Cap cap) override {}
-  void setJoin(SkPaint::Join join) override {}
+  void setCaps(SkPaint::Cap cap) override {}
+  void setJoins(SkPaint::Join join) override {}
   void setDrawStyle(SkPaint::Style style) override {}
   void setStrokeWidth(SkScalar width) override {}
   void setMiterLimit(SkScalar limit) override {}
@@ -61,8 +61,8 @@ class IngoreAttributeDispatchHelper : public virtual Dispatcher {
 // to setting a clip.
 class IngoreClipDispatchHelper : public virtual Dispatcher {
   void clipRect(const SkRect& rect, bool isAA, SkClipOp clip_op) override {}
-  void clipRRect(const SkRRect& rrect, bool isAA) override {}
-  void clipPath(const SkPath& path, bool isAA) override {}
+  void clipRRect(const SkRRect& rrect, bool isAA, SkClipOp clip_op) override {}
+  void clipPath(const SkPath& path, bool isAA, SkClipOp clip_op) override {}
 };
 
 // A utility class that will ignore all Dispatcher methods relating
@@ -98,8 +98,8 @@ class SkPaintDispatchHelper : public virtual Dispatcher {
   void setAA(bool aa) override;
   void setDither(bool dither) override;
   void setInvertColors(bool invert) override;
-  void setCap(SkPaint::Cap cap) override;
-  void setJoin(SkPaint::Join join) override;
+  void setCaps(SkPaint::Cap cap) override;
+  void setJoins(SkPaint::Join join) override;
   void setDrawStyle(SkPaint::Style style) override;
   void setStrokeWidth(SkScalar width) override;
   void setMiterLimit(SkScalar limit) override;
@@ -182,8 +182,8 @@ class ClipBoundsDispatchHelper : public virtual Dispatcher,
                                  private virtual SkMatrixSource {
  public:
   void clipRect(const SkRect& rect, bool isAA, SkClipOp clip_op) override;
-  void clipRRect(const SkRRect& rrect, bool isAA) override;
-  void clipPath(const SkPath& path, bool isAA) override;
+  void clipRRect(const SkRRect& rrect, bool isAA, SkClipOp clip_op) override;
+  void clipPath(const SkPath& path, bool isAA, SkClipOp clip_op) override;
 
   void save() override;
   void restore() override;
@@ -235,7 +235,7 @@ class DisplayListBoundsCalculator final
       public virtual SkMatrixDispatchHelper,
       public virtual ClipBoundsDispatchHelper {
  public:
-  void setJoin(SkPaint::Join join) override;
+  void setJoins(SkPaint::Join join) override;
   void setDrawStyle(SkPaint::Style style) override;
   void setStrokeWidth(SkScalar width) override;
   void setMiterLimit(SkScalar limit) override;
@@ -261,7 +261,7 @@ class DisplayListBoundsCalculator final
                SkScalar sweep,
                bool useCenter) override;
   void drawPoints(SkCanvas::PointMode mode,
-                  size_t count,
+                  uint32_t count,
                   const SkPoint pts[]) override;
   void drawVertices(const sk_sp<SkVertices> vertices,
                     SkBlendMode mode) override;
