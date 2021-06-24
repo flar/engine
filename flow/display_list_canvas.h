@@ -31,7 +31,7 @@ class DisplayListCanvasDispatcher : public virtual Dispatcher,
 
   void save() override;
   void restore() override;
-  void saveLayer(const SkRect* bounds) override;
+  void saveLayer(const SkRect* bounds, bool restoreWithBounds) override;
 
   void translate(SkScalar tx, SkScalar ty) override;
   void scale(SkScalar sx, SkScalar sy) override;
@@ -240,6 +240,8 @@ class DisplayListCanvasRecorder
     fillOp,
     // The operation will be a stroke (ignoring paint.style)
     strokeOp,
+    // The operation will be a saveLayer with a paint object
+    saveLayerOp,
   };
 
   void recordPaintAttributes(const SkPaint* paint, DrawType type);
@@ -281,6 +283,9 @@ class DisplayListCanvasRecorder
                                 ditherNeeded_ | imageFilterNeeded_ |
                                 filterQualityNeeded_ | maskFilterNeeded_;
   static const int imageRectMask_ = imageMask_ | aaNeeded_;
+  static const int saveLayerFlags_ = colorNeeded_ | blendNeeded_ |
+                                     invertColorsNeeded_ | colorFilterNeeded_ |
+                                     imageFilterNeeded_;
 
   static const SkPaint defaultPaint;
 

@@ -256,8 +256,10 @@ std::vector<DisplayListInvocationGroup> allGroups = {
   },
   { "Save(Layer)+Restore", {
       {2, 16, [](DisplayListBuilder& b) {b.save(); b.restore();}},
-      {2, 16, [](DisplayListBuilder& b) {b.saveLayer(nullptr); b.restore(); }},
-      {2, 32, [](DisplayListBuilder& b) {b.saveLayer(&TestBounds); b.restore(); }},
+      {2, 16, [](DisplayListBuilder& b) {b.saveLayer(nullptr, false); b.restore(); }},
+      {2, 16, [](DisplayListBuilder& b) {b.saveLayer(nullptr, true); b.restore(); }},
+      {2, 32, [](DisplayListBuilder& b) {b.saveLayer(&TestBounds, false); b.restore(); }},
+      {2, 32, [](DisplayListBuilder& b) {b.saveLayer(&TestBounds, true); b.restore(); }},
     }
   },
   { "Translate", {

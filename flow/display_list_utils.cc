@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <math.h>
 #include <type_traits>
 
 #include "flutter/flow/display_list_utils.h"
@@ -132,6 +133,9 @@ void SkMatrixDispatchHelper::restore() {
   matrix_ = saved_.back();
   saved_.pop_back();
 }
+void SkMatrixDispatchHelper::reset() {
+  matrix_.reset();
+}
 
 void ClipBoundsDispatchHelper::clipRect(const SkRect& rect,
                                         bool isAA,
@@ -168,62 +172,48 @@ void ClipBoundsDispatchHelper::restore() {
   saved_.pop_back();
 }
 
-void DisplayListBoundsCalculator::setJoins(SkPaint::Join join) {
-  isMiter_ = (join == SkPaint::Join::kMiter_Join);
-}
-void DisplayListBoundsCalculator::setDrawStyle(SkPaint::Style style) {
-  switch (style) {
-    case SkPaint::kFill_Style:
-      geomType_ = GEOM_FILL;
-      break;
-    case SkPaint::kStroke_Style:
-    case SkPaint::kStrokeAndFill_Style:
-      geomType_ = GEOM_STROKE;
-      break;
-  }
-}
-void DisplayListBoundsCalculator::setStrokeWidth(SkScalar width) {
-  strokeWidth_ = width;
-}
-void DisplayListBoundsCalculator::setMiterLimit(SkScalar limit) {
-  miterLimit_ = limit;
-}
-void DisplayListBoundsCalculator::setImageFilter(sk_sp<SkImageFilter> filter) {
-  imageFilter_ = filter;
-}
-void DisplayListBoundsCalculator::setMaskFilter(sk_sp<SkMaskFilter> filter) {
-  maskFilter_ = filter;
-  maskBlurSigma_ = 0.0;
-}
-void DisplayListBoundsCalculator::setMaskBlurFilter(SkBlurStyle style,
-                                                    SkScalar sigma) {
-  maskFilter_ = nullptr;
-  maskBlurStyle_ = style;
-  maskBlurSigma_ = sigma;
-}
-
-void DisplayListBoundsCalculator::saveLayer(const SkRect* bounds) {
-  save();
+void DisplayListBoundsCalculator::saveLayer(const SkRect* bounds,
+                                            bool withPaint) {
+  SkMatrixDispatchHelper::save();
+  ClipBoundsDispatchHelper::save();
+  SaveInfo info =
+      withPaint ? SaveLayerWithPaintInfo(this, accumulator_, matrix(), paint())
+                : SaveLayerInfo(accumulator_, matrix());
+  savedInfos_.push_back(info);
+  accumulator_ = info.save();
+  SkMatrixDispatchHelper::reset();
 }
 void DisplayListBoundsCalculator::save() {
   SkMatrixDispatchHelper::save();
   ClipBoundsDispatchHelper::save();
+  SaveInfo info = SaveInfo(accumulator_);
+  savedInfos_.push_back(info);
+  accumulator_ = info.save();
 }
 void DisplayListBoundsCalculator::restore() {
-  SkMatrixDispatchHelper::restore();
-  ClipBoundsDispatchHelper::restore();
+  if (!savedInfos_.empty()) {
+    SkMatrixDispatchHelper::restore();
+    ClipBoundsDispatchHelper::restore();
+    SaveInfo info = savedInfos_.back();
+    savedInfos_.pop_back();
+    accumulator_ = info.restore();
+  }
 }
 
 void DisplayListBoundsCalculator::drawPaint() {
-  // Paints entire surface, doesn't really affect computed bounds;
+  if (!boundsCull_.isEmpty()) {
+    baseAccumulator_.accumulate(boundsCull_);
+  }
 }
 void DisplayListBoundsCalculator::drawColor(SkColor color, SkBlendMode mode) {
-  // Paints entire surface, doesn't really affect computed bounds;
+  if (!boundsCull_.isEmpty()) {
+    baseAccumulator_.accumulate(boundsCull_);
+  }
 }
 void DisplayListBoundsCalculator::drawLine(const SkPoint& p0,
                                            const SkPoint& p1) {
-  accumulatePoint(p0, GEOM_STROKE);
-  accumulatePoint(p1, GEOM_STROKE);
+  SkRect bounds = SkRect::MakeLTRB(p0.fX, p0.fY, p1.fX, p1.fY).makeSorted();
+  accumulateRect(bounds, true);
 }
 void DisplayListBoundsCalculator::drawRect(const SkRect& rect) {
   accumulateRect(rect);
@@ -263,7 +253,7 @@ void DisplayListBoundsCalculator::drawPoints(SkCanvas::PointMode mode,
     for (size_t i = 0; i < count; i++) {
       ptBounds.accumulate(pts[i]);
     }
-    accumulateRect(ptBounds.getBounds(), GEOM_STROKE);
+    accumulateRect(ptBounds.getBounds(), true);
   }
 }
 void DisplayListBoundsCalculator::drawVertices(const sk_sp<SkVertices> vertices,
@@ -275,27 +265,27 @@ void DisplayListBoundsCalculator::drawImage(const sk_sp<SkImage> image,
                                             const SkSamplingOptions& sampling) {
   SkRect bounds = SkRect::Make(image->bounds());
   bounds.offset(point);
-  accumulateRect(bounds, NON_GEOM);
+  accumulateRect(bounds);
 }
 void DisplayListBoundsCalculator::drawImageRect(
     const sk_sp<SkImage> image,
     const SkRect& src,
     const SkRect& dst,
     const SkSamplingOptions& sampling) {
-  accumulateRect(dst, NON_GEOM);
+  accumulateRect(dst);
 }
 void DisplayListBoundsCalculator::drawImageNine(const sk_sp<SkImage> image,
                                                 const SkIRect& center,
                                                 const SkRect& dst,
                                                 SkFilterMode filter) {
-  accumulateRect(dst, NON_GEOM);
+  accumulateRect(dst);
 }
 void DisplayListBoundsCalculator::drawImageLattice(
     const sk_sp<SkImage> image,
     const SkCanvas::Lattice& lattice,
     const SkRect& dst,
     SkFilterMode filter) {
-  accumulateRect(dst, NON_GEOM);
+  accumulateRect(dst);
 }
 void DisplayListBoundsCalculator::drawAtlas(const sk_sp<SkImage> atlas,
                                             const SkRSXform xform[],
@@ -315,7 +305,7 @@ void DisplayListBoundsCalculator::drawAtlas(const sk_sp<SkImage> atlas,
     }
   }
   if (atlasBounds.isNotEmpty()) {
-    accumulateRect(atlasBounds.getBounds(), NON_GEOM);
+    accumulateRect(atlasBounds.getBounds());
   }
 }
 void DisplayListBoundsCalculator::drawPicture(const sk_sp<SkPicture> picture) {
@@ -344,51 +334,78 @@ void DisplayListBoundsCalculator::drawShadow(const SkPath& path,
                                              bool occludes) {
   SkRect bounds =
       PhysicalShapeLayer::ComputeShadowBounds(path.getBounds(), elevation, 1.0);
-  accumulateRect(bounds, NON_GEOM);
+  accumulateRect(bounds);
 }
-void DisplayListBoundsCalculator::accumulatePoint(const SkPoint& p,
-                                                  BoundsType type) {
-  if (type == GEOM_FILL && !maskFilter_ && !imageFilter_) {
-    SkPoint pDst;
-    matrix().mapPoints(&pDst, &p, 1);
-    accumulator_.accumulate(pDst);
-    return;
-  }
-  accumulateRect(SkRect::MakeXYWH(p.fX, p.fY, 0, 0), type);
-}
+
 void DisplayListBoundsCalculator::accumulateRect(const SkRect& rect,
-                                                 BoundsType type) {
+                                                 bool forceStroke) {
   SkRect dstRect = rect;
-  if (type == GEOM_STROKE) {
-    SkScalar pad = strokeWidth_ * 0.5;
-    if (isMiter_)
-      pad *= miterLimit_;
-    dstRect.outset(pad, pad);
-  }
-  if (type != NON_GEOM) {
-    if (maskFilter_) {
-      // Just using bondsPaint for its bounds computation skills
-      // If we capture mask filters as the blur sigmas instead
-      // of hiding them inside an uninspectable SkMaskFilter,
-      // we could compute the bounds directly.
-      SkPaint boundsPaint;
-      boundsPaint.setMaskFilter(maskFilter_);
-      boundsPaint.setStyle(SkPaint::Style::kFill_Style);
-      FML_DCHECK(boundsPaint.canComputeFastBounds());
-      dstRect = boundsPaint.computeFastBounds(dstRect, &dstRect);
-    } else if (maskBlurSigma_ > 0) {
-      dstRect.outset(3.0 * maskBlurSigma_, 3.0 * maskBlurSigma_);
+  const SkPaint& p = paint();
+  if (forceStroke) {
+    if (p.getStyle() == SkPaint::kFill_Style) {
+      setDrawStyle(SkPaint::kStroke_Style);
+    } else {
+      forceStroke = false;
     }
   }
-  if (imageFilter_) {
-    SkIRect outBounds =
-        imageFilter_->filterBounds(dstRect.roundOut(), SkMatrix::I(),
-                                   SkImageFilter::kForward_MapDirection);
-    dstRect.set(outBounds);
+  if (p.canComputeFastBounds()) {
+    dstRect = p.computeFastBounds(rect, &dstRect);
+    matrix().mapRect(&dstRect);
+    accumulator_->accumulate(dstRect);
+  } else {
+    baseAccumulator_.accumulate(boundsCull_);
   }
-  matrix().mapRect(dstRect);
-  accumulator_.accumulate(dstRect.fLeft, dstRect.fTop);
-  accumulator_.accumulate(dstRect.fRight, dstRect.fBottom);
+  if (forceStroke) {
+    setDrawStyle(SkPaint::kFill_Style);
+  }
+}
+
+DisplayListBoundsCalculator::SaveInfo::SaveInfo(BoundsAccumulator* accumulator)
+    : savedAccumulator_(accumulator) {}
+BoundsAccumulator* DisplayListBoundsCalculator::SaveInfo::save() {
+  // No need to swap out the accumulator for a normal save
+  return savedAccumulator_;
+}
+BoundsAccumulator* DisplayListBoundsCalculator::SaveInfo::restore() {
+  return savedAccumulator_;
+}
+
+DisplayListBoundsCalculator::SaveLayerInfo::SaveLayerInfo(
+    BoundsAccumulator* accumulator,
+    const SkMatrix& matrix)
+    : SaveInfo(accumulator), matrix(matrix) {}
+BoundsAccumulator* DisplayListBoundsCalculator::SaveLayerInfo::save() {
+  // Use the local layerAccumulator until restore is called and
+  // then transform (and adjust with paint if necessary) on restore()
+  return &layerAccumulator_;
+}
+BoundsAccumulator* DisplayListBoundsCalculator::SaveLayerInfo::restore() {
+  SkRect layerBounds = layerAccumulator_.getBounds();
+  matrix.mapRect(&layerBounds);
+  savedAccumulator_->accumulate(layerBounds);
+  return savedAccumulator_;
+}
+
+DisplayListBoundsCalculator::SaveLayerWithPaintInfo::SaveLayerWithPaintInfo(
+    DisplayListBoundsCalculator* calculator,
+    BoundsAccumulator* accumulator,
+    const SkMatrix& saveMatrix,
+    const SkPaint& savePaint)
+    : SaveLayerInfo(accumulator, saveMatrix),
+      calculator_(calculator),
+      paint_(savePaint) {}
+
+BoundsAccumulator*
+DisplayListBoundsCalculator::SaveLayerWithPaintInfo::restore() {
+  SkRect layerBounds = layerAccumulator_.getBounds();
+  if (paint_.canComputeFastBounds()) {
+    layerBounds = paint_.computeFastBounds(layerBounds, &layerBounds);
+    matrix.mapRect(&layerBounds);
+    savedAccumulator_->accumulate(layerBounds);
+  } else {
+    calculator_->baseAccumulator_.accumulate(calculator_->boundsCull_);
+  }
+  return savedAccumulator_;
 }
 
 }  // namespace flutter

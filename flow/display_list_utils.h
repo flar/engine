@@ -162,6 +162,9 @@ class SkMatrixDispatchHelper : public virtual Dispatcher,
 
   const SkMatrix& matrix() const override { return matrix_; }
 
+ protected:
+  void reset();
+
  private:
   SkMatrix matrix_;
   std::vector<SkMatrix> saved_;
@@ -199,7 +202,7 @@ class ClipBoundsDispatchHelper : public virtual Dispatcher,
 
 class BoundsAccumulator {
  public:
-  void accumulate(SkPoint p) { accumulate(p.fX, p.fY); }
+  void accumulate(const SkPoint& p) { accumulate(p.fX, p.fY); }
   void accumulate(SkScalar x, SkScalar y) {
     if (minX_ > x)
       minX_ = x;
@@ -209,6 +212,12 @@ class BoundsAccumulator {
       maxX_ = x;
     if (maxY_ < y)
       maxY_ = y;
+  }
+  void accumulate(const SkRect& r) {
+    if (r.fLeft <= r.fRight && r.fTop <= r.fBottom) {
+      accumulate(r.fLeft, r.fTop);
+      accumulate(r.fRight, r.fBottom);
+    }
   }
 
   bool isEmpty() const { return minX_ >= maxX_ || minY_ >= maxY_; }
@@ -231,19 +240,18 @@ class BoundsAccumulator {
 // bounds of the rendering operations.
 class DisplayListBoundsCalculator final
     : public virtual Dispatcher,
-      public virtual IngoreAttributeDispatchHelper,
+      public virtual SkPaintDispatchHelper,
       public virtual SkMatrixDispatchHelper,
       public virtual ClipBoundsDispatchHelper {
  public:
-  void setJoins(SkPaint::Join join) override;
-  void setDrawStyle(SkPaint::Style style) override;
-  void setStrokeWidth(SkScalar width) override;
-  void setMiterLimit(SkScalar limit) override;
-  void setImageFilter(sk_sp<SkImageFilter> filter) override;
-  void setMaskFilter(sk_sp<SkMaskFilter> filter) override;
-  void setMaskBlurFilter(SkBlurStyle style, SkScalar sigma) override;
+  // Construct a Calculator to determine the bounds of a list of
+  // DisplayList dispatcher method calls. Since 2 of the method calls
+  // have no intrinsic size because they render to the entire available,
+  // the |cullRect| provides a bounds for them to include.
+  DisplayListBoundsCalculator(const SkRect& cullRect = SkRect::MakeEmpty())
+      : accumulator_(&baseAccumulator_), boundsCull_(cullRect) {}
 
-  void saveLayer(const SkRect* bounds) override;
+  void saveLayer(const SkRect* bounds, bool withPaint) override;
   void save() override;
   void restore() override;
 
@@ -299,29 +307,61 @@ class DisplayListBoundsCalculator final
                   const SkScalar elevation,
                   bool occludes) override;
 
-  SkRect getBounds() { return accumulator_.getBounds(); }
+  SkRect getBounds() { return accumulator_->getBounds(); }
 
  private:
-  enum BoundsType {
-    GEOM_FILL,    // geometry, paintType is fill
-    GEOM_STROKE,  // geometry, paintType is stroke or stroke+fill
-    NON_GEOM      // i.e. image, picture, other non-geometric
+  // current accumulator based on saveLayer history
+  BoundsAccumulator* accumulator_;
+
+  // Only used for drawColor and drawPaint and paint objects that
+  // cannot support fast bounds.
+  SkRect boundsCull_;
+  BoundsAccumulator baseAccumulator_;
+
+  class SaveInfo {
+   public:
+    SaveInfo(BoundsAccumulator* accumulator);
+    virtual ~SaveInfo() = default;
+
+    virtual BoundsAccumulator* save();
+    virtual BoundsAccumulator* restore();
+
+   protected:
+    BoundsAccumulator* savedAccumulator_;
   };
 
-  bool isMiter_ = true;
-  BoundsType geomType_;
-  SkScalar strokeWidth_ = 1.0;
-  SkScalar miterLimit_ = 4.0;
-  sk_sp<SkMaskFilter> maskFilter_;
-  SkBlurStyle maskBlurStyle_;
-  SkScalar maskBlurSigma_ = 0.0;
-  sk_sp<SkImageFilter> imageFilter_;
+  class SaveLayerInfo : public SaveInfo {
+   public:
+    SaveLayerInfo(BoundsAccumulator* accumulator, const SkMatrix& matrix);
+    virtual ~SaveLayerInfo() = default;
 
-  BoundsAccumulator accumulator_;
+    BoundsAccumulator* save() override;
+    BoundsAccumulator* restore() override;
 
-  void accumulatePoint(const SkPoint& p0, BoundsType type);
-  void accumulateRect(const SkRect& rect) { accumulateRect(rect, geomType_); }
-  void accumulateRect(const SkRect& rect, BoundsType type);
+   protected:
+    BoundsAccumulator layerAccumulator_;
+    const SkMatrix matrix;
+  };
+
+  class SaveLayerWithPaintInfo : public SaveLayerInfo {
+   public:
+    SaveLayerWithPaintInfo(DisplayListBoundsCalculator* calculator,
+                           BoundsAccumulator* accumulator,
+                           const SkMatrix& saveMatrix,
+                           const SkPaint& savePaint);
+    virtual ~SaveLayerWithPaintInfo() = default;
+
+    BoundsAccumulator* restore() override;
+
+   protected:
+    DisplayListBoundsCalculator* calculator_;
+
+    SkPaint paint_;
+  };
+
+  std::vector<SaveInfo> savedInfos_;
+
+  void accumulateRect(const SkRect& rect, bool forceStroke = false);
 };
 
 }  // namespace flutter

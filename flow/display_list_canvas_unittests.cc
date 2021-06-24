@@ -7,6 +7,7 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "third_party/skia/include/core/SkPath.h"
+#include "third_party/skia/include/core/SkPictureRecorder.h"
 #include "third_party/skia/include/core/SkRRect.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "third_party/skia/include/core/SkVertices.h"
@@ -163,7 +164,7 @@ class CanvasCompareTester {
                    [=](DisplayListBuilder& b) {
                      b.setMaskBlurFilter(kNormal_SkBlurStyle, 5.0);
                    },
-                   cv_renderer, dl_renderer, "MaskFilter == Blur(Normal, 5.0");
+                   cv_renderer, dl_renderer, "MaskFilter == Blur(Normal, 5.0)");
       }
       ASSERT_TRUE(filter->unique()) << "MaskFilter Cleanup";
     }
@@ -368,6 +369,16 @@ class CanvasCompareTester {
         cv_renderer, dl_renderer, "Hard ClipRect Diff, inset by 25.5");
   }
 
+  static SkRect getSkBounds(CvRenderer& cv_setup, CvRenderer& cv_render) {
+    SkPictureRecorder recorder;
+    SkRTreeFactory rtree_factory;
+    SkCanvas* cv = recorder.beginRecording(TestBounds, &rtree_factory);
+    SkPaint p;
+    cv_setup(cv, p);
+    cv_render(cv, p);
+    return recorder.finishRecordingAsPicture()->cullRect();
+  }
+
   static void renderWith(CvRenderer& cv_setup,
                          DlRenderer& dl_setup,
                          CvRenderer& cv_render,
@@ -380,20 +391,46 @@ class CanvasCompareTester {
     SkPaint paint1;
     cv_setup(ref_surface->getCanvas(), paint1);
     cv_render(ref_surface->getCanvas(), paint1);
+    SkRect ref_bounds = getSkBounds(cv_setup, cv_render);
     SkPixmap ref_pixels;
-    fetchReference(ref_surface.get(), &ref_pixels, info, bg);
+    ASSERT_TRUE(ref_surface->peekPixels(&ref_pixels)) << info;
+    ASSERT_EQ(ref_pixels.width(), TestWidth) << info;
+    ASSERT_EQ(ref_pixels.height(), TestHeight) << info;
+    ASSERT_EQ(ref_pixels.info().bytesPerPixel(), 4) << info;
+    checkPixels(&ref_pixels, ref_bounds, info, bg);
 
     {
       // This sequence plays the provided equivalently constructed
       // DisplayList onto the SkCanvas of the surface
       // DisplayList => direct rendering
       sk_sp<SkSurface> test_surface = makeSurface(bg);
-      DisplayListBuilder builder;
+      DisplayListBuilder builder(TestBounds);
       dl_setup(builder);
       dl_render(builder);
-      builder.build()->renderTo(test_surface->getCanvas());
-      compareToReference(test_surface.get(), &ref_pixels,
-                         info + " (DL render)");
+      sk_sp<DisplayList> display_list = builder.build();
+      SkRect dl_bounds = display_list->bounds();
+#ifdef DISPLAY_LIST_BOUNDS_ACCURACY_CHECKING
+      if (dl_bounds != ref_bounds) {
+        FML_LOG(ERROR) << "For " << info;
+        FML_LOG(ERROR) << "ref: " << ref_bounds.fLeft << ", " << ref_bounds.fTop
+                       << " => " << ref_bounds.fRight << ", "
+                       << ref_bounds.fBottom;
+        FML_LOG(ERROR) << "dl: " << dl_bounds.fLeft << ", " << dl_bounds.fTop
+                       << " => " << dl_bounds.fRight << ", "
+                       << dl_bounds.fBottom;
+        if (!dl_bounds.contains(ref_bounds)) {
+          FML_LOG(ERROR) << "DisplayList bounds are too small!";
+        }
+      }
+#endif  // DISPLAY_LIST_BOUNDS_ACCURACY_CHECKING
+      // This sometimes triggers, but when it triggers and I examine
+      // the ref_bounds, they are always unnecessarily large and
+      // since the pixel OOB tests in the compare method do not
+      // trigger, we will trust the DL bounds.
+      // EXPECT_TRUE(dl_bounds.contains(ref_bounds)) << info;
+      display_list->renderTo(test_surface->getCanvas());
+      compareToReference(test_surface.get(), &ref_pixels, info + " (DL render)",
+                         &dl_bounds, bg);
     }
 
     {
@@ -407,35 +444,38 @@ class CanvasCompareTester {
       cv_render(&dl_recorder, test_paint);
       dl_recorder.builder()->build()->renderTo(test_surface->getCanvas());
       compareToReference(test_surface.get(), &ref_pixels,
-                         info + " (Sk->DL render)");
+                         info + " (Sk->DL render)", nullptr, nullptr);
     }
   }
 
-  static void fetchReference(SkSurface* ref_surface,
-                             SkPixmap* ref_pixels,
-                             const std::string info,
-                             const SkColor* bg) {
-    ASSERT_TRUE(ref_surface->peekPixels(ref_pixels)) << info;
-    ASSERT_EQ(ref_pixels->width(), TestWidth) << info;
-    ASSERT_EQ(ref_pixels->height(), TestHeight) << info;
-    ASSERT_EQ(ref_pixels->info().bytesPerPixel(), 4) << info;
+  static void checkPixels(SkPixmap* ref_pixels,
+                          SkRect ref_bounds,
+                          const std::string info,
+                          const SkColor* bg) {
     SkPMColor untouched = (bg) ? SkPreMultiplyColor(*bg) : 0;
     int pixels_touched = 0;
+    int pixels_oob = 0;
     for (int y = 0; y < TestHeight; y++) {
       const uint32_t* ref_row = ref_pixels->addr32(0, y);
       for (int x = 0; x < TestWidth; x++) {
         if (ref_row[x] != untouched) {
-          // We could count them, but we know the ASSERT will pass
-          return;
+          pixels_touched++;
+          if (!ref_bounds.intersects(SkRect::MakeXYWH(x, y, 1, 1))) {
+            pixels_oob++;
+          }
         }
       }
     }
+    ASSERT_EQ(pixels_oob, 0) << info;
     ASSERT_GT(pixels_touched, 0) << info;
   }
 
   static void compareToReference(SkSurface* test_surface,
                                  SkPixmap* reference,
-                                 const std::string info) {
+                                 const std::string info,
+                                 SkRect* bounds,
+                                 const SkColor* bg) {
+    SkPMColor untouched = (bg) ? SkPreMultiplyColor(*bg) : 0;
     SkPixmap test_pixels;
     ASSERT_TRUE(test_surface->peekPixels(&test_pixels)) << info;
     ASSERT_EQ(test_pixels.width(), TestWidth) << info;
@@ -443,15 +483,43 @@ class CanvasCompareTester {
     ASSERT_EQ(test_pixels.info().bytesPerPixel(), 4) << info;
 
     int pixels_different = 0;
+    int pixels_oob = 0;
+    int minX = TestWidth;
+    int minY = TestWidth;
+    int maxX = 0;
+    int maxY = 0;
     for (int y = 0; y < TestHeight; y++) {
       const uint32_t* ref_row = reference->addr32(0, y);
       const uint32_t* test_row = test_pixels.addr32(0, y);
       for (int x = 0; x < TestWidth; x++) {
+        if (bounds && test_row[x] != untouched) {
+          if (minX > x)
+            minX = x;
+          if (minY > y)
+            minY = y;
+          if (maxX < x)
+            maxX = x;
+          if (maxY < y)
+            maxY = y;
+          if (!bounds->intersects(SkRect::MakeXYWH(x, y, 1, 1))) {
+            pixels_oob++;
+          }
+        }
         if (test_row[x] != ref_row[x]) {
           pixels_different++;
         }
       }
     }
+#ifdef DISPLAY_LIST_BOUNDS_ACCURACY_CHECKING
+    if (bounds && *bounds != SkRect::MakeLTRB(minX, minY, maxX + 1, maxY + 1)) {
+      FML_LOG(ERROR) << "inaccurate bounds for " << info;
+      FML_LOG(ERROR) << "dl: " << bounds->fLeft << ", " << bounds->fTop
+                     << " => " << bounds->fRight << ", " << bounds->fBottom;
+      FML_LOG(ERROR) << "pixels: " << minX << ", " << minY << " => "
+                     << (maxX + 1) << ", " << (maxY + 1);
+    }
+#endif  // DISPLAY_LIST_BOUNDS_ACCURACY_CHECKING
+    ASSERT_EQ(pixels_oob, 0) << info;
     ASSERT_EQ(pixels_different, 0) << info;
   }
 

@@ -21,8 +21,9 @@ void DisplayListCanvasDispatcher::save() {
 void DisplayListCanvasDispatcher::restore() {
   canvas_->restore();
 }
-void DisplayListCanvasDispatcher::saveLayer(const SkRect* bounds) {
-  canvas_->saveLayer(bounds, &paint());
+void DisplayListCanvasDispatcher::saveLayer(const SkRect* bounds,
+                                            bool restoreWithPaint) {
+  canvas_->saveLayer(bounds, restoreWithPaint ? &paint() : nullptr);
 }
 
 void DisplayListCanvasDispatcher::translate(SkScalar tx, SkScalar ty) {
@@ -186,7 +187,7 @@ void DisplayListCanvasDispatcher::drawShadow(const SkPath& path,
 
 DisplayListCanvasRecorder::DisplayListCanvasRecorder(const SkRect& bounds)
     : SkCanvasVirtualEnforcer(bounds.width(), bounds.height()),
-      builder_(sk_make_sp<DisplayListBuilder>()) {}
+      builder_(sk_make_sp<DisplayListBuilder>(bounds)) {}
 
 sk_sp<DisplayList> DisplayListCanvasRecorder::build() {
   sk_sp<DisplayList> display_list = builder_->build();
@@ -234,7 +235,12 @@ void DisplayListCanvasRecorder::willSave() {
 }
 SkCanvas::SaveLayerStrategy DisplayListCanvasRecorder::getSaveLayerStrategy(
     const SaveLayerRec& rec) {
-  builder_->saveLayer(rec.fBounds);
+  if (rec.fPaint) {
+    recordPaintAttributes(rec.fPaint, saveLayerOp);
+    builder_->saveLayer(rec.fBounds, true);
+  } else {
+    builder_->saveLayer(rec.fBounds, false);
+  }
   return SaveLayerStrategy::kNoLayer_SaveLayerStrategy;
 }
 void DisplayListCanvasRecorder::didRestore() {

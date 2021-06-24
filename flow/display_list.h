@@ -149,7 +149,8 @@ class DisplayList : public SkRefCnt {
         used_(0),
         opCount_(0),
         uniqueID_(0),
-        bounds_({0, 0, 0, 0}) {}
+        bounds_({0, 0, 0, 0}),
+        boundsCull_({0, 0, 0, 0}) {}
 
   ~DisplayList();
 
@@ -173,7 +174,7 @@ class DisplayList : public SkRefCnt {
   bool equals(const DisplayList& other) const;
 
  private:
-  DisplayList(uint8_t* ptr, size_t used, int opCount);
+  DisplayList(uint8_t* ptr, size_t used, int opCount, const SkRect& cullRect);
 
   uint8_t* ptr_;
   size_t used_;
@@ -181,6 +182,9 @@ class DisplayList : public SkRefCnt {
 
   uint32_t uniqueID_;
   SkRect bounds_;
+
+  // Only used for drawPaint() and drawColor()
+  SkRect boundsCull_;
 
   void computeBounds();
   void dispatch(Dispatcher& ctx, uint8_t* ptr, uint8_t* end) const;
@@ -216,7 +220,7 @@ class Dispatcher {
 
   virtual void save() = 0;
   virtual void restore() = 0;
-  virtual void saveLayer(const SkRect* bounds) = 0;
+  virtual void saveLayer(const SkRect* bounds, bool restoreWithPaint) = 0;
 
   virtual void translate(SkScalar tx, SkScalar ty) = 0;
   virtual void scale(SkScalar sx, SkScalar sy) = 0;
@@ -303,6 +307,7 @@ class Dispatcher {
 // the DisplayListCanvasRecorder class.
 class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
  public:
+  DisplayListBuilder(const SkRect& cull = SkRect::MakeEmpty());
   ~DisplayListBuilder();
 
   void setAA(bool aa) override;
@@ -324,7 +329,7 @@ class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
 
   void save() override;
   void restore() override;
-  void saveLayer(const SkRect* bounds) override;
+  void saveLayer(const SkRect* bounds, bool restoreWithPaint) override;
 
   void translate(SkScalar tx, SkScalar ty) override;
   void scale(SkScalar sx, SkScalar sy) override;
@@ -410,6 +415,8 @@ class DisplayListBuilder final : public virtual Dispatcher, public SkRefCnt {
   size_t allocated_ = 0;
   int opCount_ = 0;
   int saveLevel_ = 0;
+
+  SkRect cull_;
 
   template <typename T, typename... Args>
   void* push(size_t extra, Args&&... args);

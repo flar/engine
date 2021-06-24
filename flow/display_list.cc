@@ -216,24 +216,31 @@ struct SaveOp final : DLOp {
 
   void dispatch(Dispatcher& dispatcher) const { dispatcher.save(); }
 };
-// 4 byte header + no payload uses minimum 8 bytes (4 bytes unused)
+// 4 byte header + 4 byte payload packs into minimum 8 bytes
 struct SaveLayerOp final : DLOp {
   static const auto kType = DisplayListOpType::SaveLayer;
 
-  SaveLayerOp() {}
+  SaveLayerOp(bool withPaint) : withPaint(withPaint) {}
 
-  void dispatch(Dispatcher& dispatcher) const { dispatcher.saveLayer(nullptr); }
+  bool withPaint;
+
+  void dispatch(Dispatcher& dispatcher) const {
+    dispatcher.saveLayer(nullptr, withPaint);
+  }
 };
-// 4 byte header + 16 byte payload uses 20 bytes but is rounded up to 24 bytes
-// (4 bytes unused)
+// 4 byte header + 20 byte payload packs evenly into 24 bytes
 struct SaveLayerBoundsOp final : DLOp {
   static const auto kType = DisplayListOpType::SaveLayerBounds;
 
-  SaveLayerBoundsOp(SkRect rect) : rect(rect) {}
+  SaveLayerBoundsOp(SkRect rect, bool withPaint)
+      : withPaint(withPaint), rect(rect) {}
 
+  bool withPaint;
   const SkRect rect;
 
-  void dispatch(Dispatcher& dispatcher) const { dispatcher.saveLayer(&rect); }
+  void dispatch(Dispatcher& dispatcher) const {
+    dispatcher.saveLayer(&rect, withPaint);
+  }
 };
 // 4 byte header + no payload uses minimum 8 bytes (4 bytes unused)
 struct RestoreOp final : DLOp {
@@ -739,7 +746,7 @@ struct DrawShadowOp final : DLOp {
 };
 
 void DisplayList::computeBounds() {
-  DisplayListBoundsCalculator calculator;
+  DisplayListBoundsCalculator calculator(boundsCull_);
   dispatch(calculator);
   bounds_ = calculator.getBounds();
 }
@@ -867,8 +874,15 @@ bool DisplayList::equals(const DisplayList& other) const {
   return CompareOps(ptr_, ptr_ + used_, other.ptr_, other.ptr_ + other.used_);
 }
 
-DisplayList::DisplayList(uint8_t* ptr, size_t used, int opCount)
-    : ptr_(ptr), used_(used), opCount_(opCount), bounds_({0, 0, -1, -1}) {
+DisplayList::DisplayList(uint8_t* ptr,
+                         size_t used,
+                         int opCount,
+                         const SkRect& cull)
+    : ptr_(ptr),
+      used_(used),
+      opCount_(opCount),
+      bounds_({0, 0, -1, -1}),
+      boundsCull_(cull) {
   static std::atomic<uint32_t> nextID{1};
   do {
     uniqueID_ = nextID.fetch_add(+1, std::memory_order_relaxed);
@@ -923,8 +937,11 @@ sk_sp<DisplayList> DisplayListBuilder::build() {
   int count = opCount_;
   used_ = allocated_ = opCount_ = 0;
   storage_.realloc(used);
-  return sk_sp<DisplayList>(new DisplayList(storage_.release(), used, count));
+  return sk_sp<DisplayList>(
+      new DisplayList(storage_.release(), used, count, cull_));
 }
+
+DisplayListBuilder::DisplayListBuilder(const SkRect& cull) : cull_(cull) {}
 
 DisplayListBuilder::~DisplayListBuilder() {
   uint8_t* ptr = storage_.get();
@@ -1011,11 +1028,11 @@ void DisplayListBuilder::restore() {
     saveLevel_--;
   }
 }
-void DisplayListBuilder::saveLayer(const SkRect* bounds) {
+void DisplayListBuilder::saveLayer(const SkRect* bounds, bool withPaint) {
   saveLevel_++;
   bounds  //
-      ? push<SaveLayerBoundsOp>(0, *bounds)
-      : push<SaveLayerOp>(0);
+      ? push<SaveLayerBoundsOp>(0, *bounds, withPaint)
+      : push<SaveLayerOp>(0, withPaint);
 }
 
 void DisplayListBuilder::translate(SkScalar tx, SkScalar ty) {
