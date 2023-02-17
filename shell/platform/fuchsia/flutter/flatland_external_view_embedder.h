@@ -60,10 +60,10 @@ class FlatlandExternalViewEmbedder final
   ~FlatlandExternalViewEmbedder();
 
   // |ExternalViewEmbedder|
-  SkCanvas* GetRootCanvas() override;
+  flutter::DlCanvas* GetRootCanvas() override;
 
   // |ExternalViewEmbedder|
-  std::vector<SkCanvas*> GetCurrentCanvases() override;
+  std::vector<flutter::DlCanvas*> GetCurrentCanvases() override;
 
   // |ExternalViewEmbedder|
   std::vector<flutter::DisplayListBuilder*> GetCurrentBuilders() override;
@@ -74,7 +74,7 @@ class FlatlandExternalViewEmbedder final
       std::unique_ptr<flutter::EmbeddedViewParams> params) override;
 
   // |ExternalViewEmbedder|
-  flutter::EmbedderPaintContext CompositeEmbeddedView(int64_t view_id) override;
+  flutter::DlCanvas* CompositeEmbeddedView(int64_t view_id) override;
 
   // |ExternalViewEmbedder|
   flutter::PostPrerollResult PostPrerollAction(

@@ -41,10 +41,7 @@ namespace flutter {
 /// The delegate can be any one of:
 ///   - Preroll delegate: used during Preroll to remember the outstanding
 ///                       state for embedded platform layers
-///   - SkCanvas: used during Paint for the default output to a Skia
-///               surface
-///   - DisplayListBuilder: used during Paint to construct a DisplayList
-///                         for Impeller output
+///   - DlCanvas: used during Paint for rendering output
 /// The stack will know which state needs to be conveyed to any of these
 /// delegates and when is the best time to convey that state (i.e. lazy
 /// saveLayer calls for example).
@@ -114,39 +111,20 @@ class LayerStateStack {
   // Clears out any old delegate to make room for a new one.
   void clear_delegate();
 
-  // Return the SkCanvas delegate if the state stack has such a delegate.
+  // Return the DlCanvas delegate if the state stack has such a delegate.
   // The state stack will only have one delegate at a time holding either
-  // an SkCanvas, DisplayListBuilder, or a preroll accumulator.
-  // See also |builder_delegate|.
-  SkCanvas* canvas_delegate() { return delegate_->canvas(); }
-
-  // Return the DisplayListBuilder delegate if the state stack has such a
-  // delegate.
-  // The state stack will only have one delegate at a time holding either
-  // an SkCanvas, DisplayListBuilder, or a preroll accumulator.
-  // See also |builder_delegate|.
-  DisplayListBuilder* builder_delegate() { return delegate_->builder(); }
+  // a DlCanvas or a preroll accumulator.
+  DlCanvas* canvas_delegate() { return delegate_->canvas(); }
 
   // Clears the old delegate and sets the canvas delegate to the indicated
-  // canvas (if not nullptr). This ensures that only one delegate - either a
-  // canvas, a builder, or a preroll accumulator - is present at any one time.
-  void set_delegate(SkCanvas* canvas);
-
-  // Clears the old delegate and sets the builder delegate to the indicated
-  // buider (if not nullptr). This ensures that only one delegate - either a
-  // canvas, a builder, or a preroll accumulator - is present at any one time.
-  void set_delegate(DisplayListBuilder* builder);
-  void set_delegate(sk_sp<DisplayListBuilder> builder) {
-    set_delegate(builder.get());
-  }
-  void set_delegate(DisplayListCanvasRecorder& recorder) {
-    set_delegate(recorder.builder().get());
-  }
+  // DL canvas (if not nullptr). This ensures that only one delegate - either
+  // a DlCanvas or a preroll accumulator - is present at any one time.
+  void set_delegate(DlCanvas* canvas);
 
   // Clears the old delegate and sets the state stack up to accumulate
   // clip and transform information for a Preroll phase. This ensures
-  // that only one delegate - either a canvas, a builder, or a preroll
-  // accumulator - is present at any one time.
+  // that only one delegate - either a DlCanvas or a preroll accumulator -
+  // is present at any one time.
   void set_preroll_delegate(const SkRect& cull_rect, const SkMatrix& matrix);
   void set_preroll_delegate(const SkRect& cull_rect);
   void set_preroll_delegate(const SkMatrix& matrix);
@@ -459,6 +437,9 @@ class LayerStateStack {
   friend class ClipPathEntry;
 
   class Delegate {
+   protected:
+    using ClipOp = DlCanvas::ClipOp;
+
    public:
     virtual ~Delegate() = default;
 
@@ -471,8 +452,7 @@ class LayerStateStack {
     // state and finalize all outstanding save or saveLayer operations.
     virtual void decommission() = 0;
 
-    virtual SkCanvas* canvas() const { return nullptr; }
-    virtual DisplayListBuilder* builder() const { return nullptr; }
+    virtual DlCanvas* canvas() const { return nullptr; }
 
     virtual SkRect local_cull_rect() const = 0;
     virtual SkRect device_cull_rect() const = 0;
@@ -492,13 +472,12 @@ class LayerStateStack {
     virtual void transform(const SkMatrix& matrix) = 0;
     virtual void integralTransform() = 0;
 
-    virtual void clipRect(const SkRect& rect, SkClipOp op, bool is_aa) = 0;
-    virtual void clipRRect(const SkRRect& rrect, SkClipOp op, bool is_aa) = 0;
-    virtual void clipPath(const SkPath& path, SkClipOp op, bool is_aa) = 0;
+    virtual void clipRect(const SkRect& rect, ClipOp op, bool is_aa) = 0;
+    virtual void clipRRect(const SkRRect& rrect, ClipOp op, bool is_aa) = 0;
+    virtual void clipPath(const SkPath& path, ClipOp op, bool is_aa) = 0;
   };
   friend class DummyDelegate;
-  friend class SkCanvasDelegate;
-  friend class DlBuilderDelegate;
+  friend class DlCanvasDelegate;
   friend class PrerollDelegate;
 
   std::vector<std::unique_ptr<StateEntry>> state_stack_;

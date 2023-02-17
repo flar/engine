@@ -107,13 +107,13 @@ void FlatlandExternalViewEmbedder::PrerollCompositeEmbeddedView(
   frame_composition_order_.push_back(handle);
 }
 
-flutter::EmbedderPaintContext
-FlatlandExternalViewEmbedder::CompositeEmbeddedView(int64_t view_id) {
+flutter::DlCanvas* FlatlandExternalViewEmbedder::CompositeEmbeddedView(
+    int64_t view_id) {
   zx_handle_t handle = static_cast<zx_handle_t>(view_id);
   auto found = frame_layers_.find(handle);
   FML_CHECK(found != frame_layers_.end());
 
-  return {found->second.canvas_spy->GetSpyingCanvas(), nullptr};
+  return found->second.canvas_spy->GetSpyingCanvas();
 }
 
 flutter::PostPrerollResult FlatlandExternalViewEmbedder::PostPrerollAction(

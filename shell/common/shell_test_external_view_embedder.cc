@@ -72,17 +72,6 @@ PostPrerollResult ShellTestExternalViewEmbedder::PostPrerollAction(
 }
 
 // |ExternalViewEmbedder|
-std::vector<SkCanvas*> ShellTestExternalViewEmbedder::GetCurrentCanvases() {
-  return {};
-}
-
-// |ExternalViewEmbedder|
-std::vector<DisplayListBuilder*>
-ShellTestExternalViewEmbedder::GetCurrentBuilders() {
-  return {};
-}
-
-// |ExternalViewEmbedder|
 void ShellTestExternalViewEmbedder::PushVisitedPlatformView(int64_t view_id) {
   visited_platform_views_.push_back(view_id);
 }
@@ -99,9 +88,9 @@ void ShellTestExternalViewEmbedder::PushFilterToVisitedPlatformViews(
   }
 }
 
-EmbedderPaintContext ShellTestExternalViewEmbedder::CompositeEmbeddedView(
+DlCanvas* ShellTestExternalViewEmbedder::CompositeEmbeddedView(
     int64_t view_id) {
-  return {slices_[view_id]->canvas(), slices_[view_id]->builder()};
+  return slices_[view_id]->canvas();
 }
 
 // |ExternalViewEmbedder|
@@ -129,7 +118,7 @@ void ShellTestExternalViewEmbedder::EndFrame(
 }
 
 // |ExternalViewEmbedder|
-SkCanvas* ShellTestExternalViewEmbedder::GetRootCanvas() {
+DlCanvas* ShellTestExternalViewEmbedder::GetRootCanvas() {
   return nullptr;
 }
 

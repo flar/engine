@@ -14,12 +14,9 @@ SkPictureEmbedderViewSlice::SkPictureEmbedderViewSlice(SkRect view_bounds) {
   recorder_->beginRecording(view_bounds, &rtree_factory);
 }
 
-SkCanvas* SkPictureEmbedderViewSlice::canvas() {
-  return recorder_->getRecordingCanvas();
-}
-
-DisplayListBuilder* SkPictureEmbedderViewSlice::builder() {
-  return nullptr;
+DlCanvas* SkPictureEmbedderViewSlice::canvas() {
+  adapter_.set_canvas(recorder_->getRecordingCanvas());
+  return &adapter_;
 }
 
 void SkPictureEmbedderViewSlice::end_recording() {
@@ -31,8 +28,9 @@ std::list<SkRect> SkPictureEmbedderViewSlice::searchNonOverlappingDrawnRects(
   return rtree_->searchNonOverlappingDrawnRects(query);
 }
 
-void SkPictureEmbedderViewSlice::render_into(SkCanvas* canvas) {
-  canvas->drawPicture(picture_);
+void SkPictureEmbedderViewSlice::render_into(DlCanvas* canvas) {
+  FML_DCHECK(false);
+  // canvas->DrawDisplayList(picture_);
 }
 
 void SkPictureEmbedderViewSlice::render_into(DisplayListBuilder* builder) {
@@ -40,22 +38,18 @@ void SkPictureEmbedderViewSlice::render_into(DisplayListBuilder* builder) {
 }
 
 DisplayListEmbedderViewSlice::DisplayListEmbedderViewSlice(SkRect view_bounds) {
-  recorder_ = std::make_unique<DisplayListCanvasRecorder>(
+  builder_ = std::make_unique<DisplayListBuilder>(
       /*bounds=*/view_bounds,
       /*prepare_rtree=*/true);
 }
 
-SkCanvas* DisplayListEmbedderViewSlice::canvas() {
-  return recorder_ ? recorder_.get() : nullptr;
-}
-
-DisplayListBuilder* DisplayListEmbedderViewSlice::builder() {
-  return recorder_ ? recorder_->builder().get() : nullptr;
+DlCanvas* DisplayListEmbedderViewSlice::canvas() {
+  return builder_ ? builder_.get() : nullptr;
 }
 
 void DisplayListEmbedderViewSlice::end_recording() {
-  display_list_ = recorder_->Build();
-  recorder_ = nullptr;
+  display_list_ = builder_->Build();
+  builder_ = nullptr;
 }
 
 std::list<SkRect> DisplayListEmbedderViewSlice::searchNonOverlappingDrawnRects(
@@ -63,8 +57,8 @@ std::list<SkRect> DisplayListEmbedderViewSlice::searchNonOverlappingDrawnRects(
   return display_list_->rtree()->searchAndConsolidateRects(query);
 }
 
-void DisplayListEmbedderViewSlice::render_into(SkCanvas* canvas) {
-  display_list_->RenderTo(canvas);
+void DisplayListEmbedderViewSlice::render_into(DlCanvas* canvas) {
+  canvas->DrawDisplayList(display_list_);
 }
 
 void DisplayListEmbedderViewSlice::render_into(DisplayListBuilder* builder) {
