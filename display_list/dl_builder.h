@@ -10,6 +10,7 @@
 #include "flutter/display_list/dl_canvas.h"
 #include "flutter/display_list/dl_op_flags.h"
 #include "flutter/display_list/dl_op_receiver.h"
+#include "flutter/display_list/dl_op_records.h"
 #include "flutter/display_list/dl_paint.h"
 #include "flutter/display_list/dl_sampling_options.h"
 #include "flutter/display_list/effects/dl_path_effect.h"
@@ -325,6 +326,11 @@ class DisplayListBuilder final : public virtual DlCanvas,
   }
   // |DlOpReceiver|
   void setImageFilter(const DlImageFilter* filter) override {
+    if (NotEquals(current_.getImageFilterPtr(), filter)) {
+      onSetImageFilter(filter);
+    }
+  }
+  void setImageFilter(std::shared_ptr<const DlImageFilter>& filter) {
     if (NotEquals(current_.getImageFilter(), filter)) {
       onSetImageFilter(filter);
     }
@@ -485,8 +491,12 @@ class DisplayListBuilder final : public virtual DlCanvas,
 
   void checkForDeferredSave();
 
+  using DlOpReferenceValue = DisplayList::DlOpReferenceValue;
+
   DisplayListStorage storage_;
+  std::vector<DlOpReferenceValue> references_;
   size_t used_ = 0;
+  size_t references_size_ = 0;
   size_t allocated_ = 0;
   int render_op_count_ = 0;
   int op_index_ = 0;
@@ -499,6 +509,11 @@ class DisplayListBuilder final : public virtual DlCanvas,
 
   template <typename T, typename... Args>
   void* Push(size_t extra, int op_inc, Args&&... args);
+
+  uint32_t PushReference(std::shared_ptr<impeller::TextFrame> frame);
+  uint32_t PushReference(sk_sp<SkTextBlob> blob);
+  uint32_t PushReference(std::shared_ptr<const DlImageFilter> filter);
+  uint32_t PushReference(sk_sp<DisplayList> dl);
 
   void intersect(const SkRect& rect);
 
@@ -677,6 +692,7 @@ class DisplayListBuilder final : public virtual DlCanvas,
   void onSetBlendMode(DlBlendMode mode);
   void onSetColorSource(const DlColorSource* source);
   void onSetImageFilter(const DlImageFilter* filter);
+  void onSetImageFilter(std::shared_ptr<const DlImageFilter>& filter);
   void onSetColorFilter(const DlColorFilter* filter);
   void onSetPathEffect(const DlPathEffect* effect);
   void onSetMaskFilter(const DlMaskFilter* filter);

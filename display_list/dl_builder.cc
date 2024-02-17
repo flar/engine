@@ -7,7 +7,6 @@
 #include "flutter/display_list/display_list.h"
 #include "flutter/display_list/dl_blend_mode.h"
 #include "flutter/display_list/dl_op_flags.h"
-#include "flutter/display_list/dl_op_records.h"
 #include "flutter/display_list/effects/dl_color_source.h"
 #include "flutter/display_list/utils/dl_bounds_accumulator.h"
 #include "fml/logging.h"
@@ -63,6 +62,36 @@ void* DisplayListBuilder::Push(size_t pod, int render_op_inc, Args&&... args) {
   return op + 1;
 }
 
+uint32_t DisplayListBuilder::PushReference(
+    std::shared_ptr<impeller::TextFrame> frame) {
+  uint32_t index = references_.size();
+  // references_size_ += frame->size();
+  references_.push_back(std::move(frame));
+  return index;
+}
+
+uint32_t DisplayListBuilder::PushReference(sk_sp<SkTextBlob> blob) {
+  uint32_t index = references_.size();
+  // references_size_ += blob->size();
+  references_.push_back(std::move(blob));
+  return index;
+}
+
+uint32_t DisplayListBuilder::PushReference(
+    std::shared_ptr<const DlImageFilter> filter) {
+  uint32_t index = references_.size();
+  references_size_ += filter->size();
+  references_.push_back(std::move(filter));
+  return index;
+}
+
+uint32_t DisplayListBuilder::PushReference(sk_sp<DisplayList> dl) {
+  uint32_t index = references_.size();
+  // references_size_ += dl->size();
+  references_.push_back(std::move(dl));
+  return index;
+}
+
 sk_sp<DisplayList> DisplayListBuilder::Build() {
   while (layer_stack_.size() > 1) {
     restore();
@@ -83,14 +112,16 @@ sk_sp<DisplayList> DisplayListBuilder::Build() {
   nested_bytes_ = nested_op_count_ = 0;
   is_ui_thread_safe_ = true;
   storage_.realloc(bytes);
+  references_.shrink_to_fit();
   layer_stack_.pop_back();
   layer_stack_.emplace_back();
   tracker_.reset();
   current_ = DlPaint();
 
-  return sk_sp<DisplayList>(new DisplayList(
-      std::move(storage_), bytes, count, nested_bytes, nested_count, bounds,
-      compatible, is_safe, affects_transparency, std::move(rtree)));
+  return sk_sp<DisplayList>(
+      new DisplayList(std::move(storage_), std::move(references_), bytes, count,
+                      nested_bytes, nested_count, bounds, compatible, is_safe,
+                      affects_transparency, std::move(rtree)));
 }
 
 DisplayListBuilder::DisplayListBuilder(const SkRect& cull_rect,
@@ -265,11 +296,16 @@ void DisplayListBuilder::onSetImageFilter(const DlImageFilter* filter) {
       case DlImageFilterType::kCompose:
       case DlImageFilterType::kLocalMatrix:
       case DlImageFilterType::kColorFilter: {
-        Push<SetSharedImageFilterOp>(0, 0, filter);
+        auto index = PushReference(current_.getImageFilter());
+        Push<SetSharedImageFilterOp>(0, 0, index);
         break;
       }
     }
   }
+}
+void DisplayListBuilder::onSetImageFilter(
+    std::shared_ptr<const DlImageFilter>& filter) {
+  Push<SetSharedImageFilterOp>(0, 0, PushReference(filter));
 }
 void DisplayListBuilder::onSetColorFilter(const DlColorFilter* filter) {
   if (filter == nullptr) {
@@ -1240,7 +1276,8 @@ void DisplayListBuilder::DrawDisplayList(const sk_sp<DisplayList> display_list,
   }
 
   DlPaint current_paint = current_;
-  Push<DrawDisplayListOp>(0, 1, display_list,
+  auto index = PushReference(display_list);
+  Push<DrawDisplayListOp>(0, 1, index,
                           opacity < SK_Scalar1 ? opacity : SK_Scalar1);
   is_ui_thread_safe_ = is_ui_thread_safe_ && display_list->isUIThreadSafe();
   // Not really necessary if the developer is interacting with us via
@@ -1281,7 +1318,8 @@ void DisplayListBuilder::drawTextBlob(const sk_sp<SkTextBlob> blob,
   unclipped = true;
 #endif  // OS_FUCHSIA
   if (unclipped) {
-    Push<DrawTextBlobOp>(0, 1, blob, x, y);
+    auto index = PushReference(blob);
+    Push<DrawTextBlobOp>(0, 1, index, x, y);
     // There is no way to query if the glyphs of a text blob overlap and
     // there are no current guarantees from either Skia or Impeller that
     // they will protect overlapping glyphs from the effects of overdraw
@@ -1320,7 +1358,8 @@ void DisplayListBuilder::drawTextFrame(
   unclipped = true;
 #endif  // OS_FUCHSIA
   if (unclipped) {
-    Push<DrawTextFrameOp>(0, 1, text_frame, x, y);
+    auto index = PushReference(text_frame);
+    Push<DrawTextFrameOp>(0, 1, index, x, y);
     // There is no way to query if the glyphs of a text blob overlap and
     // there are no current guarantees from either Skia or Impeller that
     // they will protect overlapping glyphs from the effects of overdraw

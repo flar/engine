@@ -41,6 +41,7 @@ namespace flutter {
 // determine if they will be used.
 struct DispatchContext {
   DlOpReceiver& receiver;
+  const std::vector<DisplayList::DlOpReferenceValue>& references;
 
   int cur_index;
   int next_render_index;
@@ -57,6 +58,34 @@ struct DispatchContext {
   };
 
   std::vector<SaveInfo> save_infos;
+
+  const DlImageFilter* get_image_filter(uint32_t index) {
+    using ST = std::shared_ptr<const DlImageFilter>;
+    FML_DCHECK(index < references.size());
+    FML_DCHECK(std::holds_alternative<ST>(references[index]));
+    return std::get<ST>(references[index]).get();
+  }
+
+  const std::shared_ptr<impeller::TextFrame> get_text_frame(uint32_t index) {
+    using ST = std::shared_ptr<impeller::TextFrame>;
+    FML_DCHECK(index < references.size());
+    FML_DCHECK(std::holds_alternative<ST>(references[index]));
+    return std::get<ST>(references[index]);
+  }
+
+  const sk_sp<SkTextBlob> get_text_blob(uint32_t index) {
+    using ST = sk_sp<SkTextBlob>;
+    FML_DCHECK(index < references.size());
+    FML_DCHECK(std::holds_alternative<ST>(references[index]));
+    return std::get<ST>(references[index]);
+  }
+
+  const sk_sp<DisplayList> get_display_list(uint32_t index) {
+    using ST = sk_sp<DisplayList>;
+    FML_DCHECK(index < references.size());
+    FML_DCHECK(std::holds_alternative<ST>(references[index]));
+    return std::get<ST>(references[index]);
+  }
 };
 
 // Most Ops can be bulk compared using memcmp because they contain
@@ -297,19 +326,20 @@ struct SetSceneColorSourceOp : DLOp {
 struct SetSharedImageFilterOp : DLOp {
   static const auto kType = DisplayListOpType::kSetSharedImageFilter;
 
-  explicit SetSharedImageFilterOp(const DlImageFilter* filter)
-      : filter(filter->shared()) {}
+  explicit SetSharedImageFilterOp(uint32_t filter_index)
+      : filter_index(filter_index) {}
 
-  const std::shared_ptr<DlImageFilter> filter;
+  // const std::shared_ptr<DlImageFilter> filter;
+  const uint32_t filter_index;
 
   void dispatch(DispatchContext& ctx) const {
-    ctx.receiver.setImageFilter(filter.get());
+    ctx.receiver.setImageFilter(ctx.get_image_filter(0));
   }
 
-  DisplayListCompare equals(const SetSharedImageFilterOp* other) const {
-    return Equals(filter, other->filter) ? DisplayListCompare::kEqual
-                                         : DisplayListCompare::kNotEqual;
-  }
+  // DisplayListCompare equals(const SetSharedImageFilterOp* other) const {
+  //   return Equals(filter, other->filter) ? DisplayListCompare::kEqual
+  //                                        : DisplayListCompare::kNotEqual;
+  // }
 };
 
 // The base object for all save() and saveLayer() ops
@@ -1051,66 +1081,56 @@ struct DrawAtlasCulledOp final : DrawAtlasBaseOp {
   }
 };
 
-// 4 byte header + ptr aligned payload uses 12 bytes round up to 16
+// 4 byte header + 8 payload bytes round up to 16
 // (4 bytes unused)
 struct DrawDisplayListOp final : DrawOpBase {
   static const auto kType = DisplayListOpType::kDrawDisplayList;
 
-  explicit DrawDisplayListOp(const sk_sp<DisplayList>& display_list,
-                             SkScalar opacity)
-      : opacity(opacity), display_list(display_list) {}
+  explicit DrawDisplayListOp(uint32_t dl_index, SkScalar opacity)
+      : dl_index(dl_index), opacity(opacity) {}
 
+  uint32_t dl_index;
   SkScalar opacity;
-  const sk_sp<DisplayList> display_list;
 
   void dispatch(DispatchContext& ctx) const {
     if (op_needed(ctx)) {
-      ctx.receiver.drawDisplayList(display_list, opacity);
+      ctx.receiver.drawDisplayList(ctx.get_display_list(dl_index), opacity);
     }
-  }
-
-  DisplayListCompare equals(const DrawDisplayListOp* other) const {
-    return (opacity == other->opacity &&
-            display_list->Equals(other->display_list))
-               ? DisplayListCompare::kEqual
-               : DisplayListCompare::kNotEqual;
   }
 };
 
-// 4 byte header + 8 payload bytes + an aligned pointer take 24 bytes
-// (4 unused to align the pointer)
+// 4 byte header + 12 byte payload packs efficiently into 16 bytes
 struct DrawTextBlobOp final : DrawOpBase {
   static const auto kType = DisplayListOpType::kDrawTextBlob;
 
-  DrawTextBlobOp(const sk_sp<SkTextBlob>& blob, SkScalar x, SkScalar y)
-      : x(x), y(y), blob(blob) {}
+  DrawTextBlobOp(uint32_t blob_index, SkScalar x, SkScalar y)
+      : blob_index(blob_index), x(x), y(y) {}
 
+  const uint32_t blob_index;
   const SkScalar x;
   const SkScalar y;
-  const sk_sp<SkTextBlob> blob;
 
   void dispatch(DispatchContext& ctx) const {
     if (op_needed(ctx)) {
-      ctx.receiver.drawTextBlob(blob, x, y);
+      ctx.receiver.drawTextBlob(ctx.get_text_blob(blob_index), x, y);
     }
   }
 };
 
+// 4 byte header + 12 byte payload packs efficiently into 16 bytes
 struct DrawTextFrameOp final : DrawOpBase {
   static const auto kType = DisplayListOpType::kDrawTextFrame;
 
-  DrawTextFrameOp(const std::shared_ptr<impeller::TextFrame>& text_frame,
-                  SkScalar x,
-                  SkScalar y)
-      : x(x), y(y), text_frame(text_frame) {}
+  DrawTextFrameOp(uint32_t frame_index, SkScalar x, SkScalar y)
+      : frame_index(frame_index), x(x), y(y) {}
 
+  uint32_t frame_index;
   const SkScalar x;
   const SkScalar y;
-  const std::shared_ptr<impeller::TextFrame> text_frame;
 
   void dispatch(DispatchContext& ctx) const {
     if (op_needed(ctx)) {
-      ctx.receiver.drawTextFrame(text_frame, x, y);
+      ctx.receiver.drawTextFrame(ctx.get_text_frame(frame_index), x, y);
     }
   }
 };

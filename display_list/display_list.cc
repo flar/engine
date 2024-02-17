@@ -6,6 +6,7 @@
 
 #include "flutter/display_list/display_list.h"
 #include "flutter/display_list/dl_op_records.h"
+#include "flutter/display_list/utils/dl_comparable.h"
 #include "flutter/fml/trace_event.h"
 
 namespace flutter {
@@ -26,6 +27,7 @@ DisplayList::DisplayList()
       modifies_transparent_black_(false) {}
 
 DisplayList::DisplayList(DisplayListStorage&& storage,
+                         std::vector<DlOpReferenceValue>&& references,
                          size_t byte_count,
                          unsigned int op_count,
                          size_t nested_byte_count,
@@ -36,6 +38,7 @@ DisplayList::DisplayList(DisplayListStorage&& storage,
                          bool modifies_transparent_black,
                          sk_sp<const DlRTree> rtree)
     : storage_(std::move(storage)),
+      references_(std::move(references)),
       byte_count_(byte_count),
       op_count_(op_count),
       nested_byte_count_(nested_byte_count),
@@ -172,6 +175,7 @@ void DisplayList::Dispatch(DlOpReceiver& receiver,
                            Culler& culler) const {
   DispatchContext context = {
       .receiver = receiver,
+      .references = references_,
       .cur_index = 0,
       // next_render_index will be initialized by culler.init()
       .next_restore_index = std::numeric_limits<int>::max(),
@@ -201,6 +205,32 @@ void DisplayList::Dispatch(DlOpReceiver& receiver,
         return;
     }
     culler.update(context);
+  }
+}
+
+void DisplayList::ForEachTextFrame(DlTextFrameVisitor visitor, bool nested) {
+  struct ForEachTextFrameOverload {
+    ForEachTextFrameOverload(DlTextFrameVisitor* visitor, bool nested)
+        : visitor(visitor), nested(nested) {}
+
+    DlTextFrameVisitor* visitor;
+    bool nested;
+
+    void operator()(const std::shared_ptr<impeller::TextFrame>& arg) {
+      visitor(arg.get());
+    }
+    void operator()(const std::shared_ptr<const DlImageFilter>& arg) {}
+    void operator()(const sk_sp<SkTextBlob>& arg) {}
+    void operator()(const sk_sp<DlImage>& arg) {}
+    void operator()(const sk_sp<DisplayList>& arg) {
+      if (nested) {
+        arg->ForEachTextFrame(visitor, nested);
+      }
+    }
+  };
+  ForEachTextFrameOverload ref_visitor(visitor, nested);
+  for (auto r : references_) {
+    std::visit(ref_visitor, r);
   }
 }
 
@@ -300,6 +330,37 @@ static bool CompareOps(uint8_t* ptrA,
   return true;
 }
 
+bool DisplayList::Equals(const DlOpReferenceValue& a,
+                         const DlOpReferenceValue& b) {
+  struct EqualOverload {
+    explicit EqualOverload(const DlOpReferenceValue& b) : b(b) {}
+
+    const DlOpReferenceValue& b;
+
+    bool operator()(const std::shared_ptr<impeller::TextFrame>& arg) {
+      // Cannot compare TextFrame objects which means
+      // DisplayList objects generated for Impeller will only
+      // be equal if their TextFrame references are the same
+      return arg == std::get<std::shared_ptr<impeller::TextFrame>>(b);
+    }
+    bool operator()(const std::shared_ptr<const DlImageFilter>& arg) {
+      return flutter::Equals(arg,
+                             std::get<std::shared_ptr<const DlImageFilter>>(b));
+    }
+    bool operator()(const sk_sp<SkTextBlob>& arg) {
+      // Cannot compare Textblob objects which means
+      // DisplayList objects generated for Skia will only
+      // be equal if their TextBlob references are the same
+      return arg == std::get<sk_sp<SkTextBlob>>(b);
+    }
+    bool operator()(const sk_sp<DlImage>& arg) { return false; }
+    bool operator()(const sk_sp<DisplayList>& arg) {
+      return arg->Equals(std::get<sk_sp<DisplayList>>(b));
+    }
+  };
+  return std::visit(EqualOverload(b), a);
+}
+
 bool DisplayList::Equals(const DisplayList* other) const {
   if (this == other) {
     return true;
@@ -307,12 +368,21 @@ bool DisplayList::Equals(const DisplayList* other) const {
   if (byte_count_ != other->byte_count_ || op_count_ != other->op_count_) {
     return false;
   }
+  if (references_.size() != other->references_.size()) {
+    return false;
+  }
   uint8_t* ptr = storage_.get();
   uint8_t* o_ptr = other->storage_.get();
-  if (ptr == o_ptr) {
-    return true;
+  if (ptr != o_ptr &&
+      !CompareOps(ptr, ptr + byte_count_, o_ptr, o_ptr + other->byte_count_)) {
+    return false;
   }
-  return CompareOps(ptr, ptr + byte_count_, o_ptr, o_ptr + other->byte_count_);
+  for (uint32_t i = 0; i < references_.size(); i++) {
+    if (!Equals(references_[i], other->references_[i])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace flutter

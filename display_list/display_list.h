@@ -7,10 +7,15 @@
 
 #include <memory>
 #include <optional>
+#include <variant>
 
 #include "flutter/display_list/dl_sampling_options.h"
+#include "flutter/display_list/effects/dl_image_filter.h"
 #include "flutter/display_list/geometry/dl_rtree.h"
+#include "flutter/display_list/image/dl_image.h"
 #include "flutter/fml/logging.h"
+#include "flutter/impeller/typographer/text_frame.h"
+#include "third_party/skia/include/core/SkTextBlob.h"
 
 // The Flutter DisplayList mechanism encapsulates a persistent sequence of
 // rendering operations.
@@ -140,6 +145,8 @@ namespace flutter {
   V(DrawShadow)                     \
   V(DrawShadowTransparentOccluder)
 
+class DisplayList;
+
 #define DL_OP_TO_ENUM_VALUE(name) k##name,
 enum class DisplayListOpType {
   FOR_EACH_DISPLAY_LIST_OP(DL_OP_TO_ENUM_VALUE)
@@ -238,6 +245,10 @@ class DisplayList : public SkRefCnt {
   void Dispatch(DlOpReceiver& ctx, const SkRect& cull_rect) const;
   void Dispatch(DlOpReceiver& ctx, const SkIRect& cull_rect) const;
 
+  using DlTextFrameVisitor = void(const impeller::TextFrame*);
+
+  void ForEachTextFrame(DlTextFrameVisitor visitor, bool nested = true);
+
   // From historical behavior, SkPicture always included nested bytes,
   // but nested ops are only included if requested. The defaults used
   // here for these accessors follow that pattern.
@@ -280,7 +291,16 @@ class DisplayList : public SkRefCnt {
   }
 
  private:
+  using DlOpReferenceValue = std::variant<std::shared_ptr<impeller::TextFrame>,
+                                          sk_sp<SkTextBlob>,
+                                          std::shared_ptr<const DlImageFilter>,
+                                          sk_sp<DlImage>,
+                                          sk_sp<DisplayList>>;
+
+  static bool Equals(const DlOpReferenceValue& a, const DlOpReferenceValue& b);
+
   DisplayList(DisplayListStorage&& ptr,
+              std::vector<DlOpReferenceValue>&& references,
               size_t byte_count,
               unsigned int op_count,
               size_t nested_byte_count,
@@ -296,6 +316,7 @@ class DisplayList : public SkRefCnt {
   static void DisposeOps(uint8_t* ptr, uint8_t* end);
 
   const DisplayListStorage storage_;
+  const std::vector<DlOpReferenceValue> references_;
   const size_t byte_count_;
   const unsigned int op_count_;
 
@@ -317,6 +338,7 @@ class DisplayList : public SkRefCnt {
                 Culler& culler) const;
 
   friend class DisplayListBuilder;
+  friend struct DispatchContext;
 };
 
 }  // namespace flutter

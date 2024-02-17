@@ -171,24 +171,24 @@ std::vector<DisplayListInvocationGroup> CreateAllAttributesOps() {
             [](DlOpReceiver& r) {
               r.setImageFilter(&kTestMatrixImageFilter3);
             }},
-           {0, 24, 0, 0,
+           {0, 8, 0, 0,
             [](DlOpReceiver& r) {
               r.setImageFilter(&kTestComposeImageFilter1);
             }},
-           {0, 24, 0, 0,
+           {0, 8, 0, 0,
             [](DlOpReceiver& r) {
               r.setImageFilter(&kTestComposeImageFilter2);
             }},
-           {0, 24, 0, 0,
+           {0, 8, 0, 0,
             [](DlOpReceiver& r) {
               r.setImageFilter(&kTestComposeImageFilter3);
             }},
-           {0, 24, 0, 0,
+           {0, 8, 0, 0,
             [](DlOpReceiver& r) { r.setImageFilter(&kTestCFImageFilter1); }},
-           {0, 24, 0, 0,
+           {0, 8, 0, 0,
             [](DlOpReceiver& r) { r.setImageFilter(&kTestCFImageFilter2); }},
            {0, 0, 0, 0, [](DlOpReceiver& r) { r.setImageFilter(nullptr); }},
-           {0, 24, 0, 0,
+           {0, 8, 0, 0,
             [](DlOpReceiver& r) {
               r.setImageFilter(
                   kTestBlurImageFilter1
@@ -903,19 +903,19 @@ std::vector<DisplayListInvocationGroup> CreateAllRenderingOps() {
        }},
       {"DrawTextBlob",
        {
-           {1, 24, 1, 24,
+           {1, 16, 1, 16,
             [](DlOpReceiver& r) {
               r.drawTextBlob(GetTestTextBlob(1), 10, 10);
             }},
-           {1, 24, 1, 24,
+           {1, 16, 1, 16,
             [](DlOpReceiver& r) {
               r.drawTextBlob(GetTestTextBlob(1), 20, 10);
             }},
-           {1, 24, 1, 24,
+           {1, 16, 1, 16,
             [](DlOpReceiver& r) {
               r.drawTextBlob(GetTestTextBlob(1), 10, 20);
             }},
-           {1, 24, 1, 24,
+           {1, 16, 1, 16,
             [](DlOpReceiver& r) {
               r.drawTextBlob(GetTestTextBlob(2), 10, 10);
             }},
